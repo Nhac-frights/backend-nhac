@@ -1,5 +1,6 @@
 package br.com.nhac.backend_nhac.domain.usuario.dto;
 
+import br.com.nhac.backend_nhac.domain.usuario.Papel;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
@@ -33,28 +34,28 @@ public record UsuarioCreateDTO(
         @jakarta.validation.constraints.Pattern(regexp = "^(?=.*[0-9])(?=.*[a-zA-Z]).*$", message = "A senha deve conter pelo menos uma letra e um número.")
         String senha
 ) {
-  public Usuario toEntity() {
-    return new Usuario(
-            this.id(),          // id
-            this.nome(),        // nome
-            this.email(),       // email
-            this.telefone(),    // telefone
-            this.imagemUrl(),   // imagemUrl
-            null,               // cpf  ← FALTAVA ESSE
-            new ArrayList<>(),  // enderecos
-            this.senha(),       // senha
-            null,               // fcmToken
-            false,              // telefoneVerificado
-            br.com.nhac.backend_nhac.domain.usuario.Papel.CLIENTE, // papel
-            true,               // ativo
-            false,              // emailVerificado
-            null,               // lojaVinculadaId
-            null,               // cargo
-            java.time.Instant.now(), // criadoEm
-            true,               // notificarNovoPedido
-            true,               // notificarMensagens
-            false,              // notificarAvaliacoes
-            false               // notificarNovidades
-        );
+    public Usuario toEntity() {
+        return Usuario.builder()
+                .id(this.id())
+                .nome(this.nome())
+                .email(this.email())
+                .telefone(this.telefone())
+                .imagemUrl(this.imagemUrl())
+                .cpf(null)               // preenchido depois pelo fluxo de cadastro, se houver
+                .enderecos(new ArrayList<>())
+                .senha(this.senha())
+                .fcmToken(null)
+                .telefoneVerificado(false)
+                .papel(Papel.CLIENTE)
+                .ativo(true)
+                .emailVerificado(false)
+                .lojaVinculadaId(null)
+                .cargo(null)
+                .criadoEm(java.time.Instant.now())
+                .notificarNovoPedido(true)
+                .notificarMensagens(true)
+                .notificarAvaliacoes(false)
+                .notificarNovidades(false)
+                .build();
     }
 }

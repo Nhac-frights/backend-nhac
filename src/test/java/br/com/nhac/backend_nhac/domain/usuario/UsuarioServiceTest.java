@@ -44,8 +44,6 @@ class UsuarioServiceTest {
         return usuario;
     }
 
-    // ---------- buscarUsuario ----------
-
     @Test
     @DisplayName("Deve retornar os dados públicos do usuário quando encontrado")
     void deveBuscarUsuarioComSucesso() {
@@ -66,8 +64,6 @@ class UsuarioServiceTest {
         assertThrows(IdNaoEncontradoException.class,
                 () -> usuarioService.buscarUsuario("fantasma"));
     }
-
-    // ---------- salvarUsuario ----------
 
     @Test
     @DisplayName("Deve encriptar a senha e salvar o usuário quando a senha for informada")
@@ -102,15 +98,12 @@ class UsuarioServiceTest {
         assertEquals("  ", captor.getValue().getSenha());
     }
 
-    // ---------- atualizarUsuarioParcial ----------
-
     @Test
     @DisplayName("Deve atualizar apenas os campos informados no DTO")
     void deveAtualizarUsuarioParcialmente() {
         Usuario usuario = usuarioPadrao("user_1");
         when(usuarioRepository.findById("user_1")).thenReturn(Optional.of(usuario));
 
-        // 6 argumentos: nome, email, telefone, imagemUrl, fcmToken, cpf
         UsuarioAtualizarDTO dados = new UsuarioAtualizarDTO(
                 "Novo Nome", null, "11888887777", null, null, null
         );
@@ -211,8 +204,6 @@ class UsuarioServiceTest {
         verify(usuarioRepository).save(usuario);
     }
 
-    // ---------- listarEnderecos ----------
-
     @Test
     @DisplayName("Deve listar os endereços de um usuário")
     void deveListarEnderecosDoUsuario() {
@@ -228,8 +219,6 @@ class UsuarioServiceTest {
         assertEquals(1, resultado.size());
         assertEquals("end_1", resultado.get(0).id());
     }
-
-    // ---------- adicionarEndereco ----------
 
     @Test
     @DisplayName("Deve adicionar um novo endereço ao usuário existente")
@@ -262,8 +251,6 @@ class UsuarioServiceTest {
 
         verify(enderecoRepository, never()).save(any());
     }
-
-    // ---------- atualizarEndereco ----------
 
     @Test
     @DisplayName("Deve atualizar um endereço pertencente ao usuário")
@@ -324,8 +311,6 @@ class UsuarioServiceTest {
 
         verify(enderecoRepository, never()).save(any());
     }
-
-    // ---------- removerEndereco ----------
 
     @Test
     @DisplayName("Deve remover um endereço pertencente ao usuário")

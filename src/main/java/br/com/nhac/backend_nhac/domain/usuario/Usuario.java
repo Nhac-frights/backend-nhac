@@ -15,6 +15,7 @@ import java.util.List;
 @Table(name = "tb_usuarios")
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Getter
 @Setter
 @EqualsAndHashCode(of = "id")
@@ -36,32 +37,36 @@ public class Usuario implements UserDetails {
     @Column(name = "imagem_url", columnDefinition = "TEXT")
     private String imagemUrl;
 
+    @Column(length = 14, unique = true)
+    private String cpf;
+
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<EnderecoUsuario> enderecos = new ArrayList<>();
 
     @Column(length = 255)
     private String senha;
 
-
     @Column(name = "fcm_token", length = 255)
     private String fcmToken;
 
     @Column(name = "telefone_verificado", nullable = false)
+    @Builder.Default
     private boolean telefoneVerificado = false;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
+    @Builder.Default
     private Papel papel = Papel.CLIENTE;
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean ativo = true;
 
     @Column(name = "email_verificado", nullable = false)
+    @Builder.Default
     private boolean emailVerificado = false;
 
-    // Preenchidos apenas quando papel == FUNCIONARIO: indicam a loja em que
-    // esse usuário atua como equipe (não é o dono) e o cargo exibido na UI
-    // do lojista. O cargo hoje é só um rótulo — não altera permissões.
     @Column(name = "loja_vinculada_id", length = 50)
     private String lojaVinculadaId;
 
@@ -69,18 +74,23 @@ public class Usuario implements UserDetails {
     private String cargo;
 
     @Column(name = "criado_em")
+    @Builder.Default
     private java.time.Instant criadoEm = java.time.Instant.now();
 
     @Column(name = "notificar_novo_pedido", nullable = false)
+    @Builder.Default
     private boolean notificarNovoPedido = true;
 
     @Column(name = "notificar_mensagens", nullable = false)
+    @Builder.Default
     private boolean notificarMensagens = true;
 
     @Column(name = "notificar_avaliacoes", nullable = false)
+    @Builder.Default
     private boolean notificarAvaliacoes = false;
 
     @Column(name = "notificar_novidades", nullable = false)
+    @Builder.Default
     private boolean notificarNovidades = false;
 
     @Override
@@ -118,4 +128,3 @@ public class Usuario implements UserDetails {
         return this.ativo;
     }
 }
-
