@@ -33,27 +33,28 @@ public record UsuarioCreateDTO(
         @jakarta.validation.constraints.Pattern(regexp = "^(?=.*[0-9])(?=.*[a-zA-Z]).*$", message = "A senha deve conter pelo menos uma letra e um número.")
         String senha
 ) {
-    public Usuario toEntity() {
-        return new Usuario(
-                this.id(),
-                this.nome(),
-                this.email(),
-                this.telefone(),
-                this.imagemUrl(),
-                new ArrayList<>(),
-                this.senha(),
-                null,
-                false,
-                br.com.nhac.backend_nhac.domain.usuario.Papel.CLIENTE,
-                true,
-                false,
-                null,
-                null,
-                java.time.Instant.now(),
-                true,
-                true,
-                false,
-                false
+  public Usuario toEntity() {
+    return new Usuario(
+            this.id(),          // id
+            this.nome(),        // nome
+            this.email(),       // email
+            this.telefone(),    // telefone
+            this.imagemUrl(),   // imagemUrl
+            null,               // cpf  ← FALTAVA ESSE
+            new ArrayList<>(),  // enderecos
+            this.senha(),       // senha
+            null,               // fcmToken
+            false,              // telefoneVerificado
+            br.com.nhac.backend_nhac.domain.usuario.Papel.CLIENTE, // papel
+            true,               // ativo
+            false,              // emailVerificado
+            null,               // lojaVinculadaId
+            null,               // cargo
+            java.time.Instant.now(), // criadoEm
+            true,               // notificarNovoPedido
+            true,               // notificarMensagens
+            false,              // notificarAvaliacoes
+            false               // notificarNovidades
         );
     }
 }

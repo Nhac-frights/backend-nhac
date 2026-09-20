@@ -37,6 +37,21 @@ class EntregadorServiceTest {
 
     private Usuario usuario;
 
+    /**
+     * Helper para montar o DTO com todos os campos obrigatórios e opcionais.
+     * Mantém os testes legíveis e evita repetir 6 argumentos em cada teste.
+     */
+    private CadastroEntregadorDTO buildCadastroDTO() {
+        return new CadastroEntregadorDTO(
+                "12345678900",      // cnh
+                "ABC1D23",          // placaVeiculo
+                TipoVeiculo.MOTO,   // tipoVeiculo
+                "98765432100",      // cpf
+                "Preta",            // corVeiculo (opcional)
+                "Honda CG 160"      // modeloVeiculo (opcional)
+        );
+    }
+
     @BeforeEach
     void setUp() {
         usuario = new Usuario();
@@ -50,10 +65,11 @@ class EntregadorServiceTest {
     @Test
     @DisplayName("Deve cadastrar novo entregador mantendo o papel principal intacto")
     void deveCadastrarEntregadorComSucesso() {
-        CadastroEntregadorDTO dto = new CadastroEntregadorDTO("12345678900", "ABC1D23", TipoVeiculo.MOTO);
+        CadastroEntregadorDTO dto = buildCadastroDTO();
 
         when(entregadorRepository.existsByUsuarioId(usuario.getId())).thenReturn(false);
-        when(entregadorRepository.save(any(Entregador.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(entregadorRepository.save(any(Entregador.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         EntregadorResponseDTO resposta = entregadorService.cadastrar(dto, usuario);
 
@@ -63,7 +79,8 @@ class EntregadorServiceTest {
         // O papel principal NÃO é mais sobrescrito para ENTREGADOR: quem
         // confirma que esta conta também é entregadora é o registro em
         // tb_entregadores (consultado por AutoridadesFactory).
-        assertEquals(Papel.CLIENTE, usuario.getPapel(), "o cadastro de entregador não deve mais sobrescrever o papel");
+        assertEquals(Papel.CLIENTE, usuario.getPapel(),
+                "o cadastro de entregador não deve mais sobrescrever o papel");
         verify(usuarioRepository, never()).save(any(Usuario.class));
         verify(entregadorRepository, times(1)).save(any(Entregador.class));
     }
@@ -71,12 +88,13 @@ class EntregadorServiceTest {
     @Test
     @DisplayName("Deve recusar cadastro de entregador para contas de loja (LOJISTA/FUNCIONARIO)")
     void deveRecusarCadastroDeEntregadorParaContaDeLoja() {
-        CadastroEntregadorDTO dto = new CadastroEntregadorDTO("12345678900", "ABC1D23", TipoVeiculo.MOTO);
+        CadastroEntregadorDTO dto = buildCadastroDTO();
         when(entregadorRepository.existsByUsuarioId(usuario.getId())).thenReturn(false);
 
         for (Papel papelDeLoja : List.of(Papel.LOJISTA, Papel.FUNCIONARIO)) {
             usuario.setPapel(papelDeLoja);
-            assertThrows(RegraDeNegocioException.class, () -> entregadorService.cadastrar(dto, usuario));
+            assertThrows(RegraDeNegocioException.class,
+                    () -> entregadorService.cadastrar(dto, usuario));
         }
 
         verify(entregadorRepository, never()).save(any(Entregador.class));
@@ -85,10 +103,11 @@ class EntregadorServiceTest {
     @Test
     @DisplayName("Deve lancar excecao se usuario ja for cadastrado como entregador")
     void deveLancarExcecaoAoCadastrarEntregadorDuplicado() {
-        CadastroEntregadorDTO dto = new CadastroEntregadorDTO("12345678900", "ABC1D23", TipoVeiculo.MOTO);
+        CadastroEntregadorDTO dto = buildCadastroDTO();
         when(entregadorRepository.existsByUsuarioId(usuario.getId())).thenReturn(true);
 
-        assertThrows(RegraDeNegocioException.class, () -> entregadorService.cadastrar(dto, usuario));
+        assertThrows(RegraDeNegocioException.class,
+                () -> entregadorService.cadastrar(dto, usuario));
         verify(entregadorRepository, never()).save(any());
     }
 
@@ -104,8 +123,10 @@ class EntregadorServiceTest {
                 .ativo(true)
                 .build();
 
-        when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
-        when(entregadorRepository.save(any(Entregador.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(entregadorRepository.findByUsuarioId(usuario.getId()))
+                .thenReturn(Optional.of(entregador));
+        when(entregadorRepository.save(any(Entregador.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         AtualizarStatusDTO dto = new AtualizarStatusDTO(StatusOperacional.ONLINE);
         EntregadorResponseDTO resposta = entregadorService.atualizarStatus(dto, usuario);
@@ -125,8 +146,10 @@ class EntregadorServiceTest {
                 .ativo(true)
                 .build();
 
-        when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
-        when(entregadorRepository.save(any(Entregador.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(entregadorRepository.findByUsuarioId(usuario.getId()))
+                .thenReturn(Optional.of(entregador));
+        when(entregadorRepository.save(any(Entregador.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         AtualizarLocalizacaoDTO dto = new AtualizarLocalizacaoDTO(-23.55052, -46.63330);
         EntregadorResponseDTO resposta = entregadorService.atualizarLocalizacao(dto, usuario);
@@ -139,11 +162,9 @@ class EntregadorServiceTest {
     @Test
     @DisplayName("Deve filtrar e ordenar entregadores proximos por distancia")
     void deveBuscarEntregadoresProximos() {
-        // Ponto de referência: Marco Zero de São Paulo (-23.55052, -46.63330)
         double lojaLat = -23.55052;
         double lojaLng = -46.63330;
 
-        // Entregador 1: ~1.1 km de distância (-23.56000, -46.63330)
         Entregador entPerto = Entregador.builder()
                 .id("ent_perto")
                 .usuario(usuario)
@@ -153,7 +174,6 @@ class EntregadorServiceTest {
                 .ativo(true)
                 .build();
 
-        // Entregador 2: ~15 km de distância (-23.68000, -46.63330)
         Entregador entLonge = Entregador.builder()
                 .id("ent_longe")
                 .usuario(usuario)
