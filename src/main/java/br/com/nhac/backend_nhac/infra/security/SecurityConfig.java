@@ -88,8 +88,33 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/entregas/**").authenticated()
 
                         .requestMatchers(HttpMethod.POST, "/api/v1/entregador/cadastro").authenticated()
-                        .requestMatchers("/api/v1/entregador/**").hasAnyRole("ENTREGADOR", "ADMIN")
+                        // Chat com a loja só faz sentido pra quem já é
+                        // entregador de verdade — mantém a exigência de
+                        // role aqui. Precisa vir ANTES da regra genérica de
+                        // /api/v1/entregador/** abaixo: o Spring Security
+                        // usa a PRIMEIRA regra cujo padrão casar o path, e
+                        // "/api/v1/entregador/**" já casa qualquer rota de
+                        // conversas também — com a ordem antiga, esta linha
+                        // nunca era alcançada (mas o @PreAuthorize no
+                        // controller cobria a mesma exigência, então não
+                        // chegou a ser uma brecha de segurança).
                         .requestMatchers("/api/v1/entregador/conversas/**").hasAnyRole("ENTREGADOR", "ADMIN")
+                        // CORREÇÃO: era hasAnyRole('ENTREGADOR', 'ADMIN') —
+                        // isso barrava com um 403 seco do Spring Security
+                        // ANTES de chegar no controller, pra QUALQUER
+                        // cliente que ainda não tivesse completado o
+                        // cadastro de entregador. E os controllers de
+                        // /perfil, /status, /localizacao, /ganhos e
+                        // /entregas já tratam esse caso corretamente,
+                        // lançando uma exceção de negócio com mensagem
+                        // clara ("Perfil de entregador não encontrado") via
+                        // EntregadorService.buscarPorUsuario — só que essa
+                        // mensagem nunca era alcançada. Rebaixar para
+                        // authenticated() não abre brecha nova: cada
+                        // Service já filtra pelo usuario.getId() de quem
+                        // está logado, então ninguém vê dados de outro
+                        // entregador de qualquer forma.
+                        .requestMatchers("/api/v1/entregador/**").authenticated()
 
                         .requestMatchers("/ws/**", "/ws-native/**").permitAll()
                         .anyRequest().authenticated()
