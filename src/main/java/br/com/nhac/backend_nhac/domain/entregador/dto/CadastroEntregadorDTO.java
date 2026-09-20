@@ -12,6 +12,13 @@ public record CadastroEntregadorDTO(
         String placaVeiculo,
 
         @NotNull(message = "O tipo do veículo é obrigatório.")
-        TipoVeiculo tipoVeiculo
+        TipoVeiculo tipoVeiculo,
+
+        @NotBlank(message = "O CPF é obrigatório.")
+        String cpf,
+
+        String corVeiculo,
+
+        String modeloVeiculo
 ) {
 }
