@@ -1,11 +1,9 @@
 package br.com.nhac.backend_nhac.domain.usuario;
 
-import br.com.nhac.backend_nhac.domain.usuario.dto.EnderecoUsuarioDTO;
 import br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioAtualizarDTO;
 import br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioCreateDTO;
 import br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioResponseDTO;
 import br.com.nhac.backend_nhac.infra.security.WebMvcControllerTest;
-import br.com.nhac.backend_nhac.domain.usuario.UsuarioService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,10 +16,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -34,7 +32,8 @@ class UsuarioControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     @MockitoBean
     private UsuarioService usuarioService;
@@ -44,6 +43,7 @@ class UsuarioControllerTest {
 
     @MockitoBean
     private br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository usuarioRepository;
+
     @MockitoBean
     private br.com.nhac.backend_nhac.domain.favorito.FavoritoService favoritoService;
 
@@ -65,10 +65,15 @@ class UsuarioControllerTest {
     }
 
     @Test
-    @DisplayName("Deve retornar 200 ao buscar os prÃ³prios dados")
+    @DisplayName("Deve retornar 200 ao buscar os próprios dados")
     void deveBuscarProprioUsuarioComSucesso() throws Exception {
         UsuarioResponseDTO mockResponse = new UsuarioResponseDTO(
-                USUARIO_LOGADO_ID, "Matheus Alves", "matheus@nhac.com", "11999998888", null, br.com.nhac.backend_nhac.domain.usuario.Papel.CLIENTE
+                USUARIO_LOGADO_ID,
+                "Matheus Alves",
+                "matheus@nhac.com",
+                "11999998888",
+                null,
+                br.com.nhac.backend_nhac.domain.usuario.Papel.CLIENTE
         );
         when(usuarioService.buscarUsuario(USUARIO_LOGADO_ID)).thenReturn(mockResponse);
 
@@ -78,7 +83,7 @@ class UsuarioControllerTest {
     }
 
     @Test
-    @DisplayName("Deve retornar 403 ao tentar buscar dados de outro usuÃ¡rio")
+    @DisplayName("Deve retornar 403 ao tentar buscar dados de outro usuário")
     void deveRetornar403AoBuscarDadosDeOutroUsuario() throws Exception {
         mockMvc.perform(get("/api/v1/usuarios/{id}", "outro_usuario_id"))
                 .andExpect(status().isForbidden())
@@ -88,10 +93,16 @@ class UsuarioControllerTest {
     }
 
     @Test
-    @DisplayName("Deve retornar 201 ao criar um novo usuÃ¡rio com dados vÃ¡lidos")
+    @DisplayName("Deve retornar 201 ao criar um novo usuário com dados válidos")
     void deveCriarUsuarioComSucesso() throws Exception {
-        UsuarioCreateDTO dto = new UsuarioCreateDTO("user_novo", "Nome Novo", "novo@nhac.com",
-                "11999998888", null, "senha123");
+        UsuarioCreateDTO dto = new UsuarioCreateDTO(
+                "user_novo",
+                "Nome Novo",
+                "novo@nhac.com",
+                "11999998888",
+                null,
+                "senha123"
+        );
 
         mockMvc.perform(post("/api/v1/usuarios")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -102,12 +113,17 @@ class UsuarioControllerTest {
     }
 
     @Test
-    @DisplayName("Deve retornar 422 ao criar usuÃ¡rio com e-mail invÃ¡lido")
-    void deveRetornar422AoCriarUsuarioComEmailInvalido() throws Exception {
-        UsuarioCreateDTO dto = new UsuarioCreateDTO("user_novo", "Nome Novo", "email-invalido",
-                "11999998888", null, "senha123");
+    @DisplayName("Deve retornar 400 ao criar usuário com e-mail inválido")
+    void deveRetornar400AoCriarUsuarioComEmailInvalido() throws Exception {
+        UsuarioCreateDTO dto = new UsuarioCreateDTO(
+                "user_novo",
+                "Nome Novo",
+                "email-invalido",
+                "11999998888",
+                null,
+                "senha123"
+        );
 
-        //noinspection deprecation
         mockMvc.perform(post("/api/v1/usuarios")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
@@ -117,9 +133,12 @@ class UsuarioControllerTest {
     }
 
     @Test
-    @DisplayName("Deve retornar 200 e o novo token ao atualizar dados parciais do prÃ³prio usuÃ¡rio")
+    @DisplayName("Deve retornar 200 e o novo token ao atualizar dados parciais do próprio usuário")
     void deveAtualizarDadosDoProprioUsuario() throws Exception {
-        UsuarioAtualizarDTO dados = new UsuarioAtualizarDTO("Nome Atualizado", null, null, null, null);
+        // 6 argumentos: nome, email, telefone, imagemUrl, fcmToken, cpf
+        UsuarioAtualizarDTO dados = new UsuarioAtualizarDTO(
+                "Nome Atualizado", null, null, null, null, null
+        );
 
         Usuario usuarioMock = new Usuario();
         usuarioMock.setId(USUARIO_LOGADO_ID);
@@ -135,35 +154,45 @@ class UsuarioControllerTest {
                 .andExpect(jsonPath("$.token").value("novo_token_jwt_super_seguro"))
                 .andExpect(jsonPath("$.nome").value("Nome Atualizado"));
 
-        verify(usuarioService, times(1)).atualizarUsuarioParcial(eq(USUARIO_LOGADO_ID), any(UsuarioAtualizarDTO.class));
+        verify(usuarioService, times(1))
+                .atualizarUsuarioParcial(eq(USUARIO_LOGADO_ID), any(UsuarioAtualizarDTO.class));
     }
 
     @Test
-    @DisplayName("Deve retornar 204 ao desativar conta de usuÃ¡rio")
+    @DisplayName("Deve retornar 204 ao desativar conta de usuário")
     void deveDesativarUsuarioComSucesso() throws Exception {
         mockMvc.perform(delete("/api/v1/usuarios/{id}", USUARIO_LOGADO_ID))
                 .andExpect(status().isNoContent());
 
-        verify(usuarioService, times(1)).desativarUsuario(eq(USUARIO_LOGADO_ID), any(Usuario.class));
+        verify(usuarioService, times(1))
+                .desativarUsuario(eq(USUARIO_LOGADO_ID), any(Usuario.class));
     }
 
     @Test
-    @DisplayName("Deve retornar true se usuario segue a loja")
+    @DisplayName("Deve retornar true se usuário segue a loja")
     void deveVerificarSeUsuarioSegueLoja() throws Exception {
         when(favoritoService.usuarioSegueLoja(USUARIO_LOGADO_ID, "loja_1")).thenReturn(true);
 
-        mockMvc.perform(get("/api/v1/usuarios/{usuarioId}/seguindo/{lojaId}", USUARIO_LOGADO_ID, "loja_1"))
+        mockMvc.perform(get("/api/v1/usuarios/{usuarioId}/seguindo/{lojaId}",
+                        USUARIO_LOGADO_ID, "loja_1"))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string("true"));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .content().string("true"));
     }
 
     @Test
     @DisplayName("Deve retornar 200 com a lista de pedidos do usuário")
     void deveListarPedidosDoUsuario() throws Exception {
-        br.com.nhac.backend_nhac.domain.pedido.dto.PedidoResumoDTO pedidoMock = new br.com.nhac.backend_nhac.domain.pedido.dto.PedidoResumoDTO(
-                "pedido_1", "loja_1", "Loja Teste", new java.math.BigDecimal("50.00"), br.com.nhac.backend_nhac.domain.pedido.StatusPedido.PENDENTE,
-                java.time.Instant.now()
-        );
+        br.com.nhac.backend_nhac.domain.pedido.dto.PedidoResumoDTO pedidoMock =
+                new br.com.nhac.backend_nhac.domain.pedido.dto.PedidoResumoDTO(
+                        "pedido_1",
+                        "loja_1",
+                        "Loja Teste",
+                        new java.math.BigDecimal("50.00"),
+                        br.com.nhac.backend_nhac.domain.pedido.StatusPedido.PENDENTE,
+                        java.time.Instant.now()
+                );
+
         org.springframework.data.domain.Page<br.com.nhac.backend_nhac.domain.pedido.dto.PedidoResumoDTO> pagina =
                 new org.springframework.data.domain.PageImpl<>(java.util.List.of(pedidoMock));
 
@@ -173,10 +202,11 @@ class UsuarioControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value("pedido_1"));
     }
+
     @Test
-    @DisplayName("Deve retornar 200 com as estatisticas do usuario")
+    @DisplayName("Deve retornar 200 com as estatísticas do usuário")
     void deveObterEstatisticasDoUsuario() throws Exception {
-        br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioEstatisticasDTO statsMock = 
+        br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioEstatisticasDTO statsMock =
                 new br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioEstatisticasDTO(15L, 3L, 5L);
 
         when(usuarioService.obterEstatisticas(USUARIO_LOGADO_ID)).thenReturn(statsMock);
