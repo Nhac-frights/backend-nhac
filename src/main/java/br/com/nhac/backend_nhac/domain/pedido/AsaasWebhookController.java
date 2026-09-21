@@ -4,6 +4,8 @@ import br.com.nhac.backend_nhac.domain.pedido.PedidoService;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +13,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/webhooks")
 public class AsaasWebhookController {
+
+    private static final Logger log = LoggerFactory.getLogger(AsaasWebhookController.class);
 
     private final PedidoService pedidoService;
     private final String asaasWebhookToken;
@@ -36,7 +40,7 @@ public class AsaasWebhookController {
             HttpServletRequest request) {
 
         if (receivedToken == null || !asaasWebhookToken.equals(receivedToken)) {
-            System.err.println("❌ Webhook Asaas: Token inválido");
+            log.warn("Webhook Asaas com token inválido");
             return ResponseEntity.status(401).build();
         }
 
@@ -50,7 +54,7 @@ public class AsaasWebhookController {
             }
 
             if (notification == null) {
-                System.err.println("❌ Webhook Asaas: Campo 'notification' ou 'event' não encontrado");
+                log.warn("Webhook Asaas sem campo notification/event");
                 return ResponseEntity.badRequest().build();
             }
 
@@ -64,58 +68,57 @@ public class AsaasWebhookController {
 
             String pedidoId = extrairPedidoIdDaReferencia(externalReference);
 
-            System.out.println("📨 Webhook Asaas recebido - Evento: " + notification + ", PaymentId: " + asaasPaymentId);
+            log.info("Webhook Asaas recebido: evento={}, paymentId={}", notification, asaasPaymentId);
 
             switch (notification) {
                 case "PAYMENT_RECEIVED":
                     if (asaasPaymentId != null && !asaasPaymentId.isEmpty()) {
-                        System.out.println("✅ Webhook Asaas: Pagamento recebido para Asaas Payment ID: " + asaasPaymentId);
+                        log.info("Webhook Asaas confirmou pagamento {}", asaasPaymentId);
                         try {
                             pedidoService.marcarComoPagoPorAsaasPaymentId(asaasPaymentId);
                         } catch (br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException e) {
-                            System.out.println("⚠️ Webhook Asaas ignorado (idempotência): " + e.getMessage());
+                            log.info("Webhook Asaas idempotente/ignorado: {}", e.getMessage());
                         }
                     } else {
-                        System.err.println("❌ Webhook Asaas: Asaas Payment ID não encontrado no payload");
+                        log.warn("Webhook Asaas sem payment id");
                         return ResponseEntity.badRequest().build();
                     }
                     break;
 
                 case "PAYMENT_OVERDUE":
                     if (pedidoId != null && !pedidoId.isEmpty()) {
-                        System.out.println("⚠️ Webhook Asaas: Pagamento vencido para pedido: " + pedidoId);
+                        log.warn("Webhook Asaas informou pagamento vencido para pedido {}", pedidoId);
                         try {
                             pedidoService.cancelarPorFalhaPagamentoAsaas(pedidoId);
                         } catch (br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException e) {
-                            System.out.println("⚠️ Webhook Asaas ignorado (idempotência): " + e.getMessage());
+                            log.info("Webhook Asaas idempotente/ignorado: {}", e.getMessage());
                         }
                     } else {
-                        System.out.println("⚠️ Webhook Asaas: PedidoId não encontrado para PAYMENT_OVERDUE");
+                        log.warn("Webhook Asaas PAYMENT_OVERDUE sem pedidoId");
                     }
                     break;
 
                 case "PAYMENT_CANCELLED":
                     if (pedidoId != null && !pedidoId.isEmpty()) {
-                        System.out.println("⚠️ Webhook Asaas: Pagamento cancelado para pedido: " + pedidoId);
+                        log.warn("Webhook Asaas informou pagamento cancelado para pedido {}", pedidoId);
                         try {
                             pedidoService.cancelarPorFalhaPagamentoAsaas(pedidoId);
                         } catch (br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException e) {
-                            System.out.println("⚠️ Webhook Asaas ignorado (idempotência): " + e.getMessage());
+                            log.info("Webhook Asaas idempotente/ignorado: {}", e.getMessage());
                         }
                     } else {
-                        System.out.println("⚠️ Webhook Asaas: PedidoId não encontrado para PAYMENT_CANCELLED");
+                        log.warn("Webhook Asaas PAYMENT_CANCELLED sem pedidoId");
                     }
                     break;
 
                 default:
-                    System.out.println("⚠️ Webhook Asaas: Evento não tratado: " + notification);
+                    log.debug("Evento Asaas não tratado: {}", notification);
             }
 
             return ResponseEntity.ok().build();
 
         } catch (Exception e) {
-            System.err.println("❌ Erro ao processar webhook do Asaas: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Erro ao processar webhook Asaas", e);
             return ResponseEntity.internalServerError().build();
         }
     }

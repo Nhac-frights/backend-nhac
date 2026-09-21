@@ -11,7 +11,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "tb_pedidos")
+@Table(
+        name = "tb_pedidos",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_pedido_usuario_idempotency",
+                columnNames = {"usuario_id", "idempotency_key"}
+        )
+)
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
@@ -22,6 +28,10 @@ public class Pedido {
     @Id
     @Column(updatable = false, nullable = false, length = 50)
     private String id;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
     @Column(name = "usuario_id", nullable = false)
     private String usuarioId;
@@ -83,8 +93,11 @@ public class Pedido {
     @Column(name = "asaas_payment_id")
     private String asaasPaymentId;
     
-    @Column(name = "idempotency_key", unique = true, length = 100)
+    @Column(name = "idempotency_key", length = 100)
     private String idempotencyKey;
+
+    @Column(name = "idempotency_fingerprint", length = 64)
+    private String idempotencyFingerprint;
 
     @Column(name = "cupom_id")
     private String cupomId;

@@ -53,12 +53,13 @@ public class AvaliacaoService {
             throw new RegraDeNegocioException("Este pedido já foi avaliado.");
         }
 
-        Loja loja = pedido.getLoja();
+        Loja loja = lojaRepository.findLockedById(pedido.getLoja().getId())
+                .orElseThrow(() -> new IdNaoEncontradoException("Loja do pedido não encontrada."));
 
         Avaliacao avaliacao = new Avaliacao(dto.nota(), dto.comentario(), usuario, loja, pedido);
-        avaliacaoRepository.save(avaliacao);
+        avaliacaoRepository.saveAndFlush(avaliacao);
 
-        recalcularMediaLoja(loja, dto.nota());
+        recalcularMediaLoja(loja);
 
         return new AvaliacaoResumoDTO(avaliacao);
     }
@@ -71,16 +72,16 @@ public class AvaliacaoService {
         return avaliacaoRepository.findByLojaId(lojaId, pageable).map(AvaliacaoResumoDTO::new);
     }
 
-    private void recalcularMediaLoja(Loja loja, Integer novaNota) {
-        br.com.nhac.backend_nhac.domain.loja.DadosOperacionais dados = loja.getDadosOperacionais();
-        int totalAvaliacoes = dados.getTotalAvaliacoes();
-        float mediaAtual = dados.getAvaliacaoMedia();
+    private void recalcularMediaLoja(Loja loja) {
+        long total = avaliacaoRepository.countByLojaId(loja.getId());
+        Double media = avaliacaoRepository.calcularMediaPorLojaId(loja.getId());
 
-        float novaMedia = ((mediaAtual * totalAvaliacoes) + novaNota) / (totalAvaliacoes + 1);
-
-        dados.setTotalAvaliacoes(totalAvaliacoes + 1);
-        dados.setAvaliacaoMedia(Math.round(novaMedia * 10.0f) / 10.0f); 
+        var dados = loja.getDadosOperacionais();
+        dados.setTotalAvaliacoes(Math.toIntExact(total));
+        float mediaArredondada = media == null
+                ? 0.0f
+                : Math.round(media.floatValue() * 10.0f) / 10.0f;
+        dados.setAvaliacaoMedia(mediaArredondada);
 
         lojaRepository.save(loja);
-    }
-}
+    }}

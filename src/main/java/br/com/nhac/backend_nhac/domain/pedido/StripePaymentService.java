@@ -8,6 +8,8 @@ import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.param.PaymentIntentCreateParams;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +17,8 @@ import java.math.BigDecimal;
 
 @Service
 public class StripePaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(StripePaymentService.class);
 
     @Value("${stripe.api.key}")
     private String stripeApiKey;
@@ -59,11 +63,11 @@ public class StripePaymentService {
             // Os campos pixCopiaECola e qrCodeUrl serão null
             String clientSecret = paymentIntent.getClientSecret();
 
-            System.out.println("✅ PaymentIntent criado: " + paymentIntent.getId());
+            log.info("PaymentIntent criado: {}", paymentIntent.getId());
             return new PedidoCriadoDTO(pedido.getId(), clientSecret, null, null);
 
         } catch (StripeException e) {
-            System.err.println("❌ Erro Stripe: " + e.getMessage());
+            log.error("Erro ao criar PaymentIntent no Stripe", e);
             throw new RuntimeException("Falha ao comunicar com Stripe para criar PaymentIntent: " + e.getMessage(), e);
         }
     }

@@ -9,6 +9,9 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+
 @Repository
 public interface LojaRepository extends JpaRepository<Loja, String> {
 
@@ -19,6 +22,9 @@ public interface LojaRepository extends JpaRepository<Loja, String> {
     Optional<Loja> findByIdAndIsAbertoTrue(String id);
 
     Optional<Loja> findByUsuarioId(String usuarioId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Loja> findLockedById(String id);
 
     @org.springframework.data.jpa.repository.Query(value = "SELECT l.* FROM tb_lojas l " +
             "WHERE l.is_aberto = true " +

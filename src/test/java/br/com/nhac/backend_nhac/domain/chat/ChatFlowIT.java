@@ -16,6 +16,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import br.com.nhac.backend_nhac.AbstractIntegrationTest;
 import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.MensagemDTO;
+import br.com.nhac.backend_nhac.domain.entregador.Entregador;
+import br.com.nhac.backend_nhac.domain.entregador.EntregadorRepository;
+import br.com.nhac.backend_nhac.domain.entregador.StatusOperacional;
+import br.com.nhac.backend_nhac.domain.entregador.TipoVeiculo;
 import br.com.nhac.backend_nhac.domain.loja.DadosOperacionais;
 import br.com.nhac.backend_nhac.domain.loja.EnderecoLoja;
 import br.com.nhac.backend_nhac.domain.loja.Loja;
@@ -47,6 +51,8 @@ public class ChatFlowIT extends AbstractIntegrationTest {
     private TokenService tokenService;
     @Autowired
     private ChatService chatService;
+    @Autowired
+    private EntregadorRepository entregadorRepository;
 
     private Usuario donoA;
     private Usuario donoB;
@@ -183,4 +189,35 @@ String conversaId = chatService.obterOuCriarConversa(lojaA.getId(), cliente).get
         mockMvc.perform(get("/api/v1/lojista/conversas"))
                 .andExpect(result -> assertTrue(result.getResponse().getStatus() == 401 || result.getResponse().getStatus() == 403));
     }
+
+    @Test
+    void clienteComPerfilEntregadorAtivoDeveUsarOsDoisPapeis() throws Exception {
+        Entregador perfil = Entregador.builder()
+                .id("ent-chat")
+                .usuario(cliente)
+                .cnh("CNH-CHAT")
+                .placaVeiculo("ABC1D23")
+                .tipoVeiculo(TipoVeiculo.MOTO)
+                .statusOperacional(StatusOperacional.ONLINE)
+                .ativo(true)
+                .build();
+        entregadorRepository.saveAndFlush(perfil);
+
+        // O mesmo token/usuário continua CLIENTE e consegue abrir o chat normal.
+        mockMvc.perform(post("/api/v1/conversas/lojas/" + lojaA.getId())
+                        .header("Authorization", "Bearer " + tokenCliente))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNotEmpty());
+
+        // AutoridadesFactory adiciona ROLE_ENTREGADOR a partir do vínculo ativo,
+        // e ChatService valida o perfil real em vez de Usuario.papel.
+        mockMvc.perform(post("/api/v1/entregador/conversas/lojas/" + lojaA.getId())
+                        .header("Authorization", "Bearer " + tokenCliente))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNotEmpty());
+
+        assertEquals(Papel.CLIENTE,
+                usuarioRepository.findById(cliente.getId()).orElseThrow().getPapel());
+    }
+
 }

@@ -13,16 +13,23 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.mockito.Mockito;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import br.com.nhac.backend_nhac.domain.pedido.StripePaymentService;
 import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCriadoDTO;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,10 +46,14 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
     private ProdutoRepository produtoRepository;
 
     @Autowired
+    private PedidoRepository pedidoRepository;
+
+    @Autowired
     private TokenService tokenService;
 
     private Loja loja;
     private Produto produto;
+    private Usuario usuario;
     private String token;
 
     @MockitoBean
@@ -54,7 +65,7 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
         lojaRepository.deleteAll();
         usuarioRepository.deleteAll();
 
-        Usuario usuario = new Usuario();
+        usuario = new Usuario();
         usuario.setId(UUID.randomUUID().toString());
         usuario.setNome("Comprador Teste");
         usuario.setEmail("comprador@teste.com");
@@ -125,4 +136,171 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.pedidoId").exists());
     }
+    private PedidoCreateDTO criarPedidoDTO(int quantidade) {
+        return new PedidoCreateDTO(
+                loja.getId(),
+                "DINHEIRO",
+                "Sem cebola",
+                null,
+                null,
+                new PedidoCreateDTO.EnderecoEntregaDTO(
+                        "Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null),
+                null,
+                List.of(new PedidoCreateDTO.ItemPedidoDTO(
+                        produto.getId(), "NOME ENVIADO PELO CLIENTE", "imagem-falsa", quantidade))
+        );
+    }
+
+    @Test
+    void deveRepetirMesmoPedidoParaMesmaIdempotencyKeyDoMesmoUsuario() throws Exception {
+        PedidoCreateDTO dto = criarPedidoDTO(2);
+        String key = "idem-" + UUID.randomUUID();
+
+        MvcResult primeira = mockMvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        MvcResult segunda = mockMvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String id1 = objectMapper.readTree(primeira.getResponse().getContentAsString()).get("pedidoId").asText();
+        String id2 = objectMapper.readTree(segunda.getResponse().getContentAsString()).get("pedidoId").asText();
+
+        assertEquals(id1, id2);
+        assertEquals(1, pedidoRepository.countByUsuarioId(usuario.getId()));
+        assertEquals(98, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+    }
+
+    @Test
+    void mesmaIdempotencyKeyPodeSerUsadaPorUsuariosDiferentes() throws Exception {
+        PedidoCreateDTO dto = criarPedidoDTO(1);
+        String key = "idem-compartilhada";
+
+        Usuario outro = new Usuario();
+        outro.setId(UUID.randomUUID().toString());
+        outro.setNome("Outro Comprador");
+        outro.setEmail("outro@teste.com");
+        outro.setSenha("senha123");
+        outro.setTelefone("11888888888");
+        usuarioRepository.save(outro);
+        String tokenOutro = tokenService.gerarToken(outro);
+
+        MvcResult r1 = mockMvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated()).andReturn();
+
+        MvcResult r2 = mockMvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", "Bearer " + tokenOutro)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated()).andReturn();
+
+        String id1 = objectMapper.readTree(r1.getResponse().getContentAsString()).get("pedidoId").asText();
+        String id2 = objectMapper.readTree(r2.getResponse().getContentAsString()).get("pedidoId").asText();
+
+        assertNotEquals(id1, id2);
+        assertEquals(1, pedidoRepository.countByUsuarioId(usuario.getId()));
+        assertEquals(1, pedidoRepository.countByUsuarioId(outro.getId()));
+    }
+
+    @Test
+    void requisicoesConcorrentesComMesmaKeyCriamSomenteUmPedido() throws Exception {
+        PedidoCreateDTO dto = criarPedidoDTO(2);
+        String body = objectMapper.writeValueAsString(dto);
+        String key = "idem-concorrente-" + UUID.randomUUID();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch iniciarJuntas = new CountDownLatch(1);
+
+        try {
+            java.util.concurrent.Callable<MvcResult> chamada = () -> {
+                iniciarJuntas.await();
+                return mockMvc.perform(post("/api/v1/pedidos")
+                                .header("Authorization", "Bearer " + token)
+                                .header("Idempotency-Key", key)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                        .andReturn();
+            };
+
+            Future<MvcResult> f1 = executor.submit(chamada);
+            Future<MvcResult> f2 = executor.submit(chamada);
+            iniciarJuntas.countDown();
+
+            MvcResult r1 = f1.get();
+            MvcResult r2 = f2.get();
+
+            assertTrue(List.of(200, 201).contains(r1.getResponse().getStatus()));
+            assertTrue(List.of(200, 201).contains(r2.getResponse().getStatus()));
+
+            String id1 = objectMapper.readTree(r1.getResponse().getContentAsString()).get("pedidoId").asText();
+            String id2 = objectMapper.readTree(r2.getResponse().getContentAsString()).get("pedidoId").asText();
+
+            assertEquals(id1, id2);
+            assertEquals(1, pedidoRepository.countByUsuarioId(usuario.getId()));
+            assertEquals(98, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void snapshotDoItemDeveIgnorarNomeEImagemEnviadosPeloCliente() throws Exception {
+        produto.setImagemUrl("imagem-real");
+        produtoRepository.save(produto);
+
+        MvcResult resultado = mockMvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(criarPedidoDTO(1))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String pedidoId = objectMapper.readTree(resultado.getResponse().getContentAsString()).get("pedidoId").asText();
+
+        mockMvc.perform(get("/api/v1/pedidos/" + pedidoId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itens[0].nome").value("Pizza de Calabresa"))
+                .andExpect(jsonPath("$.itens[0].imagemUrl").value("imagem-real"))
+                .andExpect(jsonPath("$.itens[0].preco").value(45.00));
+    }
+
+
+    @Test
+    void mesmaIdempotencyKeyComPayloadDiferenteDeveRetornarConflito() throws Exception {
+        String key = "idem-conflito-" + UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(criarPedidoDTO(1))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(criarPedidoDTO(2))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("IDEMPOTENCIA_CONFLITO"));
+
+        assertEquals(1, pedidoRepository.countByUsuarioId(usuario.getId()));
+        assertEquals(99, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+    }
+
 }

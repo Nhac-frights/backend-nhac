@@ -1,6 +1,11 @@
 package br.com.nhac.backend_nhac.domain.pedido;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.Map;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -9,6 +14,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import br.com.nhac.backend_nhac.domain.entregador.EntregadorRepository;
+import br.com.nhac.backend_nhac.domain.entregador.StatusOperacional;
+import br.com.nhac.backend_nhac.domain.loja.FreteService;
 import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaAccessService;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
@@ -26,6 +34,7 @@ import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
 import br.com.nhac.backend_nhac.exceptions.CampoObrigatorioFaltandoException;
 import br.com.nhac.backend_nhac.exceptions.EstoqueInsuficienteException;
 import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
+import br.com.nhac.backend_nhac.exceptions.IdempotenciaConflitoException;
 import br.com.nhac.backend_nhac.exceptions.LojaFechadaException;
 import br.com.nhac.backend_nhac.exceptions.PagamentoRecusadoException;
 import br.com.nhac.backend_nhac.exceptions.ProdutoInativoException;
@@ -44,11 +53,14 @@ public class PedidoService {
     private final StripePaymentService stripePaymentService;
     private final AsaasPaymentService asaasPaymentService;
     private final ApplicationEventPublisher eventPublisher;
+    private final FreteService freteService;
+    private final EntregadorRepository entregadorRepository;
 
     public PedidoService(PedidoRepository pedidoRepository, LojaRepository lojaRepository, ProdutoRepository produtoRepository,
                           UsuarioRepository usuarioRepository, LojaAccessService lojaAccessService,
                           StripePaymentService stripePaymentService, AsaasPaymentService asaasPaymentService,
-                          ApplicationEventPublisher eventPublisher) {
+                          ApplicationEventPublisher eventPublisher, FreteService freteService,
+                          EntregadorRepository entregadorRepository) {
         this.pedidoRepository = pedidoRepository;
         this.lojaRepository = lojaRepository;
         this.produtoRepository = produtoRepository;
@@ -57,15 +69,32 @@ public class PedidoService {
         this.stripePaymentService = stripePaymentService;
         this.asaasPaymentService = asaasPaymentService;
         this.eventPublisher = eventPublisher;
+        this.freteService = freteService;
+        this.entregadorRepository = entregadorRepository;
     }
 
     @Transactional
     public ResultadoCriacaoPedido finalizarPedido(PedidoCreateDTO dto, Usuario usuarioLogado, String idempotencyKey) {
 
+        String idempotencyFingerprint = null;
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            var existente = pedidoRepository.findByIdempotencyKey(idempotencyKey);
+            idempotencyFingerprint = calcularFingerprint(usuarioLogado.getId(), dto);
+
+            // Serializa tentativas concorrentes do MESMO usuário. Assim duas
+            // requisições com a mesma chave não passam juntas pelo "não existe"
+            // antes do INSERT. Usuários diferentes não se bloqueiam.
+            usuarioRepository.findLockedById(usuarioLogado.getId())
+                    .orElseThrow(() -> new IdNaoEncontradoException("Usuário autenticado não encontrado."));
+
+            var existente = pedidoRepository.findByUsuarioIdAndIdempotencyKey(
+                    usuarioLogado.getId(), idempotencyKey);
             if (existente.isPresent()) {
                 Pedido pedidoExistente = existente.get();
+                if (pedidoExistente.getIdempotencyFingerprint() != null
+                        && !pedidoExistente.getIdempotencyFingerprint().equals(idempotencyFingerprint)) {
+                    throw new IdempotenciaConflitoException(
+                            "A Idempotency-Key já foi usada com um pedido diferente.");
+                }
                 return new ResultadoCriacaoPedido(
                         new PedidoCriadoDTO(pedidoExistente.getId(), null, null, null),
                         true);
@@ -81,6 +110,7 @@ public class PedidoService {
 
         Pedido pedido = dto.toEntity(loja);
         pedido.setIdempotencyKey(idempotencyKey);
+        pedido.setIdempotencyFingerprint(idempotencyFingerprint);
         pedido.setUsuarioId(usuarioLogado.getId());
 
         BigDecimal valorTotalItens = BigDecimal.ZERO;
@@ -111,6 +141,11 @@ public class PedidoService {
             }
 
             ItemPedido novoItem = itemDto.toEntity(produtoReal);
+            // Snapshot histórico sempre vem da fonte canônica do servidor.
+            // Nome/imagem enviados pelo app são mantidos no DTO por
+            // compatibilidade, mas não são confiados.
+            novoItem.setNome(produtoReal.getNome());
+            novoItem.setImagemUrl(produtoReal.getImagemUrl());
             BigDecimal precoReal = produtoReal.getPreco();
             novoItem.setPrecoHistorico(precoReal);
 
@@ -160,6 +195,13 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findByStripePaymentIntentId(paymentIntentId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido com PaymentIntent " + paymentIntentId + " não encontrado."));
         
+        if (pedido.getStatus() == StatusPedido.PAGO
+                || pedido.getStatus() == StatusPedido.PREPARANDO
+                || pedido.getStatus() == StatusPedido.SAIU_ENTREGA
+                || pedido.getStatus() == StatusPedido.ENTREGUE) {
+            return; // webhook duplicado ou atrasado: estado já reflete pagamento confirmado
+        }
+
         pedido.alterarStatus(StatusPedido.PAGO);
         pedidoRepository.save(pedido);
     }
@@ -169,6 +211,13 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findByAsaasPaymentId(asaasPaymentId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido com Asaas Payment ID " + asaasPaymentId + " não encontrado."));
         
+        if (pedido.getStatus() == StatusPedido.PAGO
+                || pedido.getStatus() == StatusPedido.PREPARANDO
+                || pedido.getStatus() == StatusPedido.SAIU_ENTREGA
+                || pedido.getStatus() == StatusPedido.ENTREGUE) {
+            return;
+        }
+
         pedido.alterarStatus(StatusPedido.PAGO);
         pedidoRepository.save(pedido);
     }
@@ -178,9 +227,7 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado para cancelamento por falha de pagamento Asaas."));
 
-        pedido.alterarStatus(StatusPedido.CANCELADO);
-        devolverEstoque(pedido);
-        pedidoRepository.save(pedido);
+        cancelarPorFalhaDePagamentoSePendente(pedido);
     }
 
     @Transactional(readOnly = true)
@@ -235,15 +282,12 @@ public class PedidoService {
             throw new AcessoNegadoException("Acesso negado: você não tem permissão para alterar o status deste pedido.");
         }
 
-        boolean estavaCancelado = pedido.getStatus() == StatusPedido.CANCELADO;
-        pedido.alterarStatus(novoStatus);
-
-        // Bug corrigido: o painel do lojista cancela pedidos por essa rota (PATCH /status),
-        // não pela rota dedicada /cancelar. Sem isso, o estoque nunca voltava.
-        if (novoStatus == StatusPedido.CANCELADO && !estavaCancelado) {
-            devolverEstoque(pedido);
+        if (novoStatus == StatusPedido.CANCELADO) {
+            cancelarInternamente(pedido);
+            return;
         }
 
+        pedido.alterarStatus(novoStatus);
         pedidoRepository.save(pedido);
 
         // Despacho automático: quando a loja aceita o pedido e começa a
@@ -274,9 +318,15 @@ public class PedidoService {
             throw new AcessoNegadoException("Acesso negado: você não tem permissão para cancelar este pedido.");
         }
 
-        pedido.alterarStatus(StatusPedido.CANCELADO);
-        devolverEstoque(pedido);
-        pedidoRepository.save(pedido);
+        // Sem fluxo de refund explícito, o cliente só cancela antes do
+        // pagamento ser confirmado. Cancelamentos pós-pagamento precisam
+        // passar por uma futura operação de estorno.
+        if (pedido.getStatus() != StatusPedido.PENDENTE) {
+            throw new RegraDeNegocioException(
+                    "O cliente só pode cancelar pedidos enquanto o pagamento estiver pendente.");
+        }
+
+        cancelarInternamente(pedido);
     }
 
     @Transactional
@@ -284,11 +334,76 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado para cancelamento por webhook."));
 
+        cancelarPorFalhaDePagamentoSePendente(pedido);
+    }
+
+    private String calcularFingerprint(String usuarioId, PedidoCreateDTO dto) {
+        String endereco = dto.enderecoEntrega() == null ? "" : String.join("|",
+                n(dto.enderecoEntrega().rua()),
+                n(dto.enderecoEntrega().numero()),
+                n(dto.enderecoEntrega().bairro()),
+                n(dto.enderecoEntrega().cidade()),
+                n(dto.enderecoEntrega().estado()),
+                n(dto.enderecoEntrega().cep()),
+                n(dto.enderecoEntrega().complemento()));
+
+        String itens = dto.itens().stream()
+                .sorted(Comparator.comparing(PedidoCreateDTO.ItemPedidoDTO::produtoId)
+                        .thenComparing(PedidoCreateDTO.ItemPedidoDTO::quantidade))
+                .map(i -> n(i.produtoId()) + ":" + i.quantidade())
+                .reduce((a, b) -> a + "," + b)
+                .orElse("");
+
+        String canonico = String.join("||",
+                n(usuarioId), n(dto.lojaId()), n(dto.formaPagamento()),
+                n(dto.observacao()), n(dto.cupomId()), endereco, itens);
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(canonico.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 indisponível na JVM.", e);
+        }
+    }
+
+    private String n(String valor) {
+        return valor == null ? "" : valor.trim();
+    }
+
+    private void cancelarPorFalhaDePagamentoSePendente(Pedido pedido) {
+        if (pedido.getStatus() == StatusPedido.CANCELADO) {
+            return; // webhook repetido
+        }
+        if (pedido.getStatus() != StatusPedido.PENDENTE) {
+            throw new RegraDeNegocioException(
+                    "Falha de pagamento recebida para pedido que já avançou para " + pedido.getStatus());
+        }
+        cancelarInternamente(pedido);
+    }
+
+    /**
+     * Único ponto que efetiva CANCELADO + devolução de estoque.
+     * A checagem inicial torna replays sequenciais idempotentes; @Version em
+     * Pedido garante rollback de uma segunda transação concorrente.
+     */
+    private boolean cancelarInternamente(Pedido pedido) {
+        if (pedido.getStatus() == StatusPedido.CANCELADO) {
+            return false;
+        }
+
         pedido.alterarStatus(StatusPedido.CANCELADO);
         devolverEstoque(pedido);
+
+        if (pedido.getEntregador() != null) {
+            pedido.getEntregador().setStatusOperacional(StatusOperacional.ONLINE);
+            entregadorRepository.save(pedido.getEntregador());
+        }
+
         pedidoRepository.save(pedido);
+        return true;
     }
-    
+
     private void devolverEstoque(Pedido pedido) {
         for (ItemPedido item : pedido.getItens()) {
             Produto produto = item.getProduto();

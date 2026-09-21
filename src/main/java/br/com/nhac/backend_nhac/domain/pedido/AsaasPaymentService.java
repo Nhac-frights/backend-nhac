@@ -6,6 +6,8 @@ import br.com.nhac.backend_nhac.domain.pedido.PedidoRepository;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,8 @@ import java.time.format.DateTimeFormatter;
 
 @Service
 public class AsaasPaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(AsaasPaymentService.class);
 
     @Value("${asaas.api.key}")
     private String asaasApiKey;
@@ -97,14 +101,14 @@ public class AsaasPaymentService {
                 pedido.setAsaasPaymentId(paymentId);
                 pedidoRepository.save(pedido); // ✅ SALVA O PEDIDO COM O ID DO ASAAS
 
-                System.out.println("✅ Cobrança PIX criada: " + paymentId);
+                log.info("Cobrança PIX criada no Asaas: {}", paymentId);
                 return new PedidoCriadoDTO(pedido.getId(), null, pixCopyAndPaste, pixQrCode);
             } else {
                 throw new RuntimeException("Falha ao criar cobrança no Asaas: " + response.getStatusCode());
             }
 
         } catch (Exception e) {
-            System.err.println("❌ Erro Asaas: " + e.getMessage());
+            log.error("Erro ao criar cobrança PIX no Asaas", e);
             throw new RuntimeException("Erro ao comunicar com Asaas para criar cobrança PIX: " + e.getMessage(), e);
         }
     }

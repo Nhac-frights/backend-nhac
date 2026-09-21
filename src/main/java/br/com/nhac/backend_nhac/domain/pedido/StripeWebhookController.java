@@ -9,6 +9,8 @@ import com.stripe.net.Webhook;
 import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/webhooks/stripe")
 @Tag(name = "Stripe Webhooks", description = "Endpoints para recebimento de eventos assíncronos de pagamento do Stripe")
 public class StripeWebhookController {
+
+    private static final Logger log = LoggerFactory.getLogger(StripeWebhookController.class);
 
     private final PedidoService pedidoService;
 
@@ -35,7 +39,7 @@ public class StripeWebhookController {
             @RequestHeader(value = "Stripe-Signature", required = false) String sigHeader) {
 
         if (sigHeader == null) {
-            System.err.println("❌ Webhook Stripe: Faltando header Stripe-Signature");
+            log.warn("Webhook Stripe sem Stripe-Signature");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Faltando header Stripe-Signature");
         }
 
@@ -46,10 +50,10 @@ public class StripeWebhookController {
             event = Webhook.constructEvent(payload, sigHeader, endpointSecret);
         } catch (SignatureVerificationException e) {
             // Assinatura inválida (pode ser alguém tentando invadir a API)
-            System.err.println("❌ Webhook Stripe: Assinatura inválida - " + e.getMessage());
+            log.warn("Webhook Stripe com assinatura inválida: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid signature");
         } catch (Exception e) {
-            System.err.println("❌ Webhook Stripe: Payload inválido - " + e.getMessage());
+            log.warn("Payload inválido recebido no webhook Stripe: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid payload");
         }
 
@@ -58,13 +62,13 @@ public class StripeWebhookController {
             case "payment_intent.succeeded":
                 PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer().getObject().orElse(null);
                 if (paymentIntent != null) {
-                    System.out.println("✅ Webhook Stripe: Pagamento bem-sucedido para PaymentIntent: " + paymentIntent.getId());
+                    log.info("Webhook Stripe confirmou pagamento do PaymentIntent {}", paymentIntent.getId());
                     try {
                         pedidoService.marcarComoPagoPorPaymentIntentId(paymentIntent.getId());
                     } catch (br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException e) {
-                        System.out.println("⚠️ Webhook Stripe ignorado: " + e.getMessage());
+                        log.info("Webhook Stripe idempotente/ignorado: {}", e.getMessage());
                     } catch (Exception e) {
-                        System.err.println("❌ Erro no webhook Stripe: " + e.getMessage());
+                        log.error("Erro ao processar confirmação Stripe", e);
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); // Força o retry do Stripe
                     }
                 }
@@ -75,20 +79,20 @@ public class StripeWebhookController {
                     Map<String, String> metadata = failedIntent.getMetadata();
                     if (metadata != null && metadata.containsKey("pedidoId")) {
                         String pedidoId = metadata.get("pedidoId");
-                        System.out.println("⚠️ Webhook Stripe: Pagamento falhou para pedido: " + pedidoId);
+                        log.warn("Webhook Stripe informou falha de pagamento do pedido {}", pedidoId);
                         try {
                             pedidoService.marcarComoCanceladoPorFalhaDePagamento(pedidoId);
                         } catch (br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException e) {
-                            System.out.println("⚠️ Webhook Stripe ignorado: " + e.getMessage());
+                            log.info("Webhook Stripe idempotente/ignorado: {}", e.getMessage());
                         } catch (Exception e) {
-                            System.err.println("❌ Erro ao cancelar pedido via webhook: " + e.getMessage());
+                            log.error("Erro ao cancelar pedido por webhook Stripe", e);
                             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
                         }
                     }
                 }
                 break;
             default:
-                System.out.println("⚠️ Webhook Stripe: Evento não tratado: " + event.getType());
+                log.debug("Evento Stripe não tratado: {}", event.getType());
         }
 
         return ResponseEntity.ok("Success");

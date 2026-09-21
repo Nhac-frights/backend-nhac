@@ -129,6 +129,11 @@ class DespachoServiceTest {
 
         when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
         when(ofertaEntregaRepository.findByIdAndEntregadorId("ofe_1", "ent_1")).thenReturn(Optional.of(oferta));
+        when(pedidoRepository.atribuirEntregadorSeDisponivel("ped_1", entregador)).thenAnswer(invocation -> {
+            pedido.setEntregador(entregador);
+            return 1;
+        });
+        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
         when(ofertaEntregaRepository.findByPedidoIdAndStatus("ped_1", StatusOferta.PENDENTE)).thenReturn(List.of(oferta));
         when(usuarioRepository.findById("cli_1")).thenReturn(Optional.of(new Usuario()));
 
@@ -141,9 +146,74 @@ class DespachoServiceTest {
         assertEquals(StatusOperacional.EM_ENTREGA, entregador.getStatusOperacional());
         assertEquals(StatusOferta.ACEITA, oferta.getStatus());
 
-        verify(pedidoRepository, times(1)).save(pedido);
+        verify(pedidoRepository, times(1)).atribuirEntregadorSeDisponivel("ped_1", entregador);
+        verify(pedidoRepository, never()).save(pedido);
         verify(entregadorRepository, times(1)).save(entregador);
         verify(ofertaEntregaRepository, times(1)).save(oferta);
+    }
+
+
+
+    @Test
+    @DisplayName("Deve perder a disputa de aceite sem prender o entregador em EM_ENTREGA")
+    void deveTratarPerdaDaDisputaDeAceite() {
+        OfertaEntrega oferta = OfertaEntrega.builder()
+                .id("ofe_1")
+                .pedido(pedido)
+                .entregador(entregador)
+                .status(StatusOferta.PENDENTE)
+                .criadoEm(Instant.now())
+                .expiraEm(Instant.now().plusSeconds(40))
+                .build();
+
+        when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
+        when(ofertaEntregaRepository.findByIdAndEntregadorId("ofe_1", "ent_1"))
+                .thenReturn(Optional.of(oferta));
+        when(pedidoRepository.atribuirEntregadorSeDisponivel("ped_1", entregador)).thenReturn(0);
+
+        assertThrows(RegraDeNegocioException.class,
+                () -> despachoService.aceitarOferta("ofe_1", usuarioEntregador));
+
+        assertEquals(StatusOferta.EXPIRADA, oferta.getStatus());
+        assertEquals(StatusOperacional.ONLINE, entregador.getStatusOperacional());
+        verify(entregadorRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Não deve duplicar oferta pendente no re-despacho")
+    void naoDeveDuplicarOfertaPendente() {
+        OfertaEntrega existente = OfertaEntrega.builder()
+                .id("ofe_existente")
+                .pedido(pedido)
+                .entregador(entregador)
+                .status(StatusOferta.PENDENTE)
+                .criadoEm(Instant.now())
+                .expiraEm(Instant.now().plusSeconds(40))
+                .build();
+
+        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+        when(entregadorService.buscarEntregadoresProximos(-23.55052, -46.63330, 7.0))
+                .thenReturn(List.of(new EntregadorService.EntregadorComDistancia(entregador, 0.5)));
+        when(ofertaEntregaRepository.findByPedidoIdAndEntregadorIdAndStatus(
+                "ped_1", "ent_1", StatusOferta.PENDENTE)).thenReturn(Optional.of(existente));
+
+        List<OfertaEntregaDTO> ofertas = despachoService.despacharPedido("ped_1");
+
+        assertTrue(ofertas.isEmpty());
+        verify(ofertaEntregaRepository, never()).save(argThat(o -> !o.getId().equals("ofe_existente")));
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("Despacho deve aceitar somente pedido PREPARANDO")
+    void deveRecusarDespachoForaDePreparando() {
+        pedido.setStatus(StatusPedido.PAGO);
+        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+
+        assertThrows(RegraDeNegocioException.class,
+                () -> despachoService.despacharPedido("ped_1"));
+
+        verifyNoInteractions(entregadorService);
     }
 
     @Test
@@ -201,4 +271,21 @@ class DespachoServiceTest {
         assertEquals(StatusOferta.RECUSADA, oferta.getStatus());
         verify(ofertaEntregaRepository, times(1)).save(oferta);
     }
+
+    @Test
+    @DisplayName("Não deve oferecer nova corrida a entregador que já possui pedido ativo")
+    void naoDeveOferecerSegundaCorridaParaEntregadorComPedidoAtivo() {
+        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+        when(entregadorService.buscarEntregadoresProximos(-23.55052, -46.63330, 7.0))
+                .thenReturn(List.of(new EntregadorService.EntregadorComDistancia(entregador, 0.5)));
+        when(pedidoRepository.existsByEntregadorIdAndStatusIn(
+                eq("ent_1"), anyList())).thenReturn(true);
+
+        List<OfertaEntregaDTO> ofertas = despachoService.despacharPedido("ped_1");
+
+        assertTrue(ofertas.isEmpty());
+        verify(ofertaEntregaRepository, never()).save(any());
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
 }

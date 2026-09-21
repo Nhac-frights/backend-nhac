@@ -16,6 +16,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -46,6 +47,9 @@ class LojaServiceTest {
 
     @Mock
     private LojaAccessService lojaAccessService;
+
+    @Spy
+    private FreteService freteService = new FreteService();
 
     @InjectMocks
     private LojaService lojaService;
@@ -131,17 +135,18 @@ class LojaServiceTest {
         cliente.setId("user_lojista");
         cliente.setPapel(Papel.CLIENTE);
 
-        when(lojaRepository.count()).thenReturn(0L);
         when(lojaRepository.save(any(Loja.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         LojaResumoDTO resumo = lojaService.criarLoja(construirDtoCriacao(), cliente);
 
-        assertEquals("loja_0001", resumo.id());
+        assertTrue(resumo.id().startsWith("loja_"));
         assertEquals(Papel.LOJISTA, cliente.getPapel());
         verify(usuarioRepository).save(cliente);
         verify(lojaRepository).save(argThat(loja ->
-                "user_lojista".equals(loja.getUsuarioId()) && "loja_0001".equals(loja.getId())));
+                "user_lojista".equals(loja.getUsuarioId())
+                        && loja.getId() != null
+                        && loja.getId().startsWith("loja_")));
     }
 
     @Test
@@ -151,7 +156,6 @@ class LojaServiceTest {
         admin.setId("user_admin");
         admin.setPapel(Papel.ADMIN);
 
-        when(lojaRepository.count()).thenReturn(1L);
         when(lojaRepository.save(any(Loja.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         lojaService.criarLoja(construirDtoCriacao(), admin);
