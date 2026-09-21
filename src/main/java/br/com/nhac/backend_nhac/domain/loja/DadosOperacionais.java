@@ -18,7 +18,7 @@ import java.math.BigDecimal;
 public class DadosOperacionais {
 
     @Schema(description = "Avaliação média da loja pelos clientes", example = "4.6")
-    @Column(name = "avaliacao_media")
+    @Column(name = "avaliacao_media", columnDefinition = "DECIMAL(3,1)")
     private float avaliacaoMedia;
 
     @Schema(description = "Valor base cobrado para a taxa de entrega", example = "5.99")

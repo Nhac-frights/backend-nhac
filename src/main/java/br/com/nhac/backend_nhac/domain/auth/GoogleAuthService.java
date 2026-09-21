@@ -36,8 +36,15 @@ public class GoogleAuthService {
     @Value("${google.client.id}")
     private String googleClientIds;
 
+    @Value("${nhac.google.enabled:true}")
+    private boolean googleEnabled = true;
+
     @Transactional
     public LoginResponseDTO autenticarComGoogle(String idTokenString) {
+        if (!googleEnabled) {
+            throw new CredenciaisInvalidasException(
+                    "Login Google está desabilitado neste ambiente.");
+        }
         try {
             List<String> clientIds = Arrays.asList(googleClientIds.split(","));
 

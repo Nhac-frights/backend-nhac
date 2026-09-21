@@ -15,10 +15,10 @@ public class Avaliacao {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TINYINT")
     private Integer nota;
 
-    @Column(length = 500)
+    @Column(columnDefinition = "TEXT")
     private String comentario;
 
     @Column(name = "criado_em", nullable = false)
