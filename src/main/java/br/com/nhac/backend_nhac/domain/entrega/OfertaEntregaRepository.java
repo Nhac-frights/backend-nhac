@@ -17,4 +17,7 @@ public interface OfertaEntregaRepository extends JpaRepository<OfertaEntrega, St
     List<OfertaEntrega> findByStatusAndExpiraEmBefore(StatusOferta status, Instant agora);
 
     Optional<OfertaEntrega> findByIdAndEntregadorId(String id, String entregadorId);
+
+    Optional<OfertaEntrega> findByPedidoIdAndEntregadorIdAndStatus(
+            String pedidoId, String entregadorId, StatusOferta status);
 }

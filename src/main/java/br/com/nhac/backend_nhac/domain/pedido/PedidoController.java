@@ -124,7 +124,7 @@ public class PedidoController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Cancelar pedido", description = "Cancela o pedido. Apenas o dono pode cancelar, e apenas se estiver PENDENTE ou PREPARANDO.")
+    @Operation(summary = "Cancelar pedido", description = "Cancela o pedido. Apenas o dono pode cancelar e somente enquanto estiver PENDENTE (antes da confirmação do pagamento).")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Pedido cancelado com sucesso"),
             @ApiResponse(responseCode = "400", description = "Erro de negócio (ex: status inválido)"),

@@ -102,11 +102,9 @@ public class ChatService {
         if (usuarioLogado == null) {
             throw new AcessoNegadoException("É necessário estar autenticado para abrir uma conversa.");
         }
-        if (usuarioLogado.getPapel() != Papel.ENTREGADOR) {
-            throw new AcessoNegadoException("Apenas entregadores podem abrir esta conversa.");
-        }
-        // Garante que ele realmente tem cadastro de entregador (não só o
-        // papel) antes de criar o canal.
+        // O papel principal pode continuar CLIENTE; ROLE_ENTREGADOR é
+        // concedida dinamicamente pelo vínculo ativo em tb_entregadores.
+        // A regra de domínio correta, portanto, é exigir o perfil real.
         entregadorService.buscarPorUsuario(usuarioLogado);
         return obterOuCriarConversaInterna(lojaId, usuarioLogado.getId(), ParticipanteTipo.ENTREGADOR);
     }

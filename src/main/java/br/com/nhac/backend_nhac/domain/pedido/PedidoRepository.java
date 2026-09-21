@@ -1,9 +1,10 @@
 package br.com.nhac.backend_nhac.domain.pedido;
 
-import br.com.nhac.backend_nhac.domain.pedido.Pedido;
+import br.com.nhac.backend_nhac.domain.entregador.Entregador;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,8 +13,16 @@ import java.util.Optional;
 public interface PedidoRepository extends JpaRepository<Pedido, String> {
     Optional<Pedido> findByStripePaymentIntentId(String stripePaymentIntentId);
     Optional<Pedido> findByAsaasPaymentId(String asaasPaymentId);
-    Optional<Pedido> findByIdempotencyKey(String idempotencyKey);
-    boolean existsByIdempotencyKey(String idempotencyKey);
+    Optional<Pedido> findByUsuarioIdAndIdempotencyKey(String usuarioId, String idempotencyKey);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Pedido p SET p.entregador = :entregador, p.version = p.version + 1 WHERE p.id = :pedidoId AND p.entregador IS NULL")
+    int atribuirEntregadorSeDisponivel(
+            @Param("pedidoId") String pedidoId,
+            @Param("entregador") Entregador entregador
+    );
+
+    boolean existsByEntregadorIdAndStatusIn(String entregadorId, java.util.List<StatusPedido> status);
     Page<Pedido> findByUsuarioId(String usuarioId, Pageable pageable);
 
     @Query(value = """

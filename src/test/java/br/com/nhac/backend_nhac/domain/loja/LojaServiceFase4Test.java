@@ -10,11 +10,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -27,13 +29,15 @@ class LojaServiceFase4Test {
     @Mock
     private UsuarioRepository usuarioRepository;
 
+    @Spy
+    private FreteService freteService = new FreteService();
+
     @InjectMocks
     private LojaService lojaService;
 
     @Test
-    @DisplayName("Deve criar loja e gerar ID customizado sequencialmente")
+    @DisplayName("Deve criar loja e gerar ID customizado seguro")
     void deveCriarLojaComIdCustomizado() {
-        when(lojaRepository.count()).thenReturn(5L);
 
         Loja lojaMock = new Loja();
         lojaMock.setId("loja_0006");
@@ -62,11 +66,11 @@ class LojaServiceFase4Test {
 
         LojaResumoDTO resumo = lojaService.criarLoja(dto, usuarioLogado);
 
-        assertEquals("loja_0006", resumo.id());
+        assertTrue(resumo.id().startsWith("loja_"));
         assertEquals("Nova Loja", resumo.nome());
         assertEquals(Papel.LOJISTA, usuarioLogado.getPapel());
 
         verify(lojaRepository).save(argThat(loja ->
-                "loja_0006".equals(loja.getId()) && "user_1".equals(loja.getUsuarioId())));
+                loja.getId() != null && loja.getId().startsWith("loja_") && "user_1".equals(loja.getUsuarioId())));
     }
 }

@@ -57,11 +57,6 @@ public class VerificacaoEmailService {
     private void enviarEmailCadastro(String email, CodigoVerificacaoEmail novoCodigo) {
         String codigo = novoCodigo.getCodigo();
 
-        System.out.println("=================================================");
-        System.out.println("[CÓDIGO DE VERIFICAÇÃO DE CADASTRO]");
-        System.out.println("Destinatário: " + email);
-        System.out.println("Código: " + codigo);
-        System.out.println("=================================================");
 
         String assunto = "Confirme seu e-mail - Nhac Delivery";
         
@@ -276,11 +271,6 @@ public void verificarCodigoCadastro(String email, String codigoDigitado) {
         String nomeUsuario = (usuario != null && usuario.getNome() != null) ? usuario.getNome() : "Usuário";
         String codigo = novoCodigo.getCodigo();
 
-        System.out.println("=================================================");
-        System.out.println("[CÓDIGO DE E-MAIL GERADO]");
-        System.out.println("Destinatário: " + email);
-        System.out.println("Código: " + codigo);
-        System.out.println("=================================================");
 
         String assunto = "Recuperação de Senha - Nhac Delivery";
         

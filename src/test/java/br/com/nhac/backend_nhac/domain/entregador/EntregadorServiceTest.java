@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -134,6 +135,48 @@ class EntregadorServiceTest {
         assertEquals(StatusOperacional.ONLINE, resposta.statusOperacional());
     }
 
+
+
+    @Test
+    @DisplayName("Não deve permitir definir EM_ENTREGA manualmente")
+    void naoDevePermitirEmEntregaManual() {
+        Entregador entregador = Entregador.builder()
+                .id("ent_1")
+                .usuario(usuario)
+                .statusOperacional(StatusOperacional.ONLINE)
+                .ativo(true)
+                .build();
+
+        when(entregadorRepository.findByUsuarioId(usuario.getId()))
+                .thenReturn(Optional.of(entregador));
+
+        assertThrows(RegraDeNegocioException.class,
+                () -> entregadorService.atualizarStatus(
+                        new AtualizarStatusDTO(StatusOperacional.EM_ENTREGA), usuario));
+
+        verify(entregadorRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Não deve permitir mudança manual enquanto estiver EM_ENTREGA")
+    void naoDeveAlterarStatusManualDuranteEntrega() {
+        Entregador entregador = Entregador.builder()
+                .id("ent_1")
+                .usuario(usuario)
+                .statusOperacional(StatusOperacional.EM_ENTREGA)
+                .ativo(true)
+                .build();
+
+        when(entregadorRepository.findByUsuarioId(usuario.getId()))
+                .thenReturn(Optional.of(entregador));
+
+        assertThrows(RegraDeNegocioException.class,
+                () -> entregadorService.atualizarStatus(
+                        new AtualizarStatusDTO(StatusOperacional.ONLINE), usuario));
+
+        verify(entregadorRepository, never()).save(any());
+    }
+
     @Test
     @DisplayName("Deve atualizar localizacao GPS do entregador")
     void deveAtualizarLocalizacao() {
@@ -171,6 +214,7 @@ class EntregadorServiceTest {
                 .statusOperacional(StatusOperacional.ONLINE)
                 .latitudeAtual(-23.56000)
                 .longitudeAtual(-46.63330)
+                .ultimaAtualizacaoLocalizacao(Instant.now())
                 .ativo(true)
                 .build();
 
@@ -180,6 +224,7 @@ class EntregadorServiceTest {
                 .statusOperacional(StatusOperacional.ONLINE)
                 .latitudeAtual(-23.68000)
                 .longitudeAtual(-46.63330)
+                .ultimaAtualizacaoLocalizacao(Instant.now())
                 .ativo(true)
                 .build();
 
@@ -192,4 +237,25 @@ class EntregadorServiceTest {
         assertEquals("ent_perto", resultado.get(0).entregador().getId());
         assertTrue(resultado.get(0).distanciaKm() < 2.0);
     }
+
+    @Test
+    @DisplayName("Deve ignorar localização GPS antiga no despacho")
+    void deveIgnorarLocalizacaoAntiga() {
+        Entregador antigo = Entregador.builder()
+                .id("ent_antigo")
+                .usuario(usuario)
+                .statusOperacional(StatusOperacional.ONLINE)
+                .latitudeAtual(-23.55100)
+                .longitudeAtual(-46.63330)
+                .ultimaAtualizacaoLocalizacao(Instant.now().minusSeconds(300))
+                .ativo(true)
+                .build();
+
+        when(entregadorRepository.findByStatusOperacionalAndAtivoTrue(StatusOperacional.ONLINE))
+                .thenReturn(List.of(antigo));
+
+        assertTrue(entregadorService.buscarEntregadoresProximos(
+                -23.55052, -46.63330, 5.0).isEmpty());
+    }
+
 }

@@ -1,10 +1,12 @@
 # Backend Nhac - API de Delivery e Gestão de Lojas
 
-Backend desenvolvido em Java 17 com Spring Boot 4 / MariaDB / JPA / Flyway para a plataforma Nhac (aplicativo de delivery e painel web do lojista).
+Backend desenvolvido em Java 25 com Spring Boot 4 / MariaDB / JPA / Flyway para a plataforma Nhac (aplicativo de delivery e painel web do lojista).
 
 ## Documentação dos Endpoints & Guia de Integração
 
 A Swagger UI interativa está disponível em `/swagger-ui/index.html` ou `/v3/api-docs`.
+
+> **Perfis:** desenvolvimento usa o perfil `dev` por padrão. Em produção use `SPRING_PROFILES_ACTIVE=prod`; o perfil `prod` exige secrets de banco/JWT/pagamentos por variáveis de ambiente e habilita validação estrita do Flyway.
 
 ---
 
@@ -61,7 +63,7 @@ Rotas simplificadas para o painel web, onde a loja é inferida diretamente pelo 
 - `GET /api/v1/pedidos/{id}`: Detalhes do pedido (apenas pelo cliente que realizou a compra).
 - `GET /api/v1/pedidos`: Listagem paginada dos pedidos do cliente autenticado.
 - `PATCH /api/v1/pedidos/{id}/status`: Atualização do status do pedido. Restrita ao lojista dono da loja do pedido ou `ADMIN`. Transições inválidas retornam HTTP 409 (`TRANSICAO_STATUS_INVALIDA`).
-- `PATCH /api/v1/pedidos/{id}/cancelar`: Cancelamento do pedido pelo cliente (apenas nos status `PENDENTE` ou `PREPARANDO`).
+- `PATCH /api/v1/pedidos/{id}/cancelar`: Cancelamento do pedido pelo cliente (apenas no status `PENDENTE`, antes da confirmação do pagamento).
 
 ---
 
@@ -84,3 +86,7 @@ Todas as exceções tratadas retornam o formato padrão:
   "sugestoes": ["Verifique os campos informados e tente novamente."]
 }
 ```
+
+### Testes de integração e concorrência
+
+A suíte usa H2 para integrações rápidas e MariaDB via Testcontainers para cenários em que a semântica real do banco importa, como locking, concorrência e constraints. O mvn verify também executa um teste que aplica todas as migrations Flyway em um MariaDB limpo.

@@ -1,6 +1,8 @@
 package br.com.nhac.backend_nhac.domain.pedido;
 
 import br.com.nhac.backend_nhac.domain.loja.DadosOperacionais;
+import br.com.nhac.backend_nhac.domain.entregador.EntregadorRepository;
+import br.com.nhac.backend_nhac.domain.loja.FreteService;
 import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaAccessService;
 import br.com.nhac.backend_nhac.domain.pedido.Pedido;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -46,6 +49,10 @@ class PedidoServiceTest {
     @Mock private AsaasPaymentService asaasPaymentService;
     @Mock private LojaAccessService lojaAccessService;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private EntregadorRepository entregadorRepository;
+
+    @Spy
+    private FreteService freteService = new FreteService();
 
     @InjectMocks private PedidoService pedidoService;
 
@@ -489,7 +496,7 @@ class PedidoServiceTest {
 
         when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
 
-        assertThrows(br.com.nhac.backend_nhac.exceptions.TransicaoStatusInvalidaException.class, () -> {
+        assertThrows(RegraDeNegocioException.class, () -> {
             pedidoService.cancelarPedido("pedido_123", "user_123");
         });
     }
@@ -518,7 +525,7 @@ class PedidoServiceTest {
 
         when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
 
-        assertThrows(br.com.nhac.backend_nhac.exceptions.TransicaoStatusInvalidaException.class, () -> {
+        assertThrows(RegraDeNegocioException.class, () -> {
             pedidoService.marcarComoCanceladoPorFalhaDePagamento("pedido_123");
         });
     }
@@ -593,4 +600,40 @@ class PedidoServiceTest {
         verify(pedidoRepository, times(1)).save(pedidoMock);
         assertEquals(StatusPedido.PREPARANDO, pedidoMock.getStatus());
     }
+
+    @Test
+    @DisplayName("Webhook de pagamento repetido deve ser idempotente")
+    void webhookPagamentoRepetidoDeveSerIdempotente() {
+        Pedido pedido = new Pedido();
+        pedido.setId("ped_webhook");
+        pedido.setStatus(StatusPedido.PAGO);
+
+        when(pedidoRepository.findByStripePaymentIntentId("pi_repetido"))
+                .thenReturn(Optional.of(pedido));
+
+        for (int i = 0; i < 10; i++) {
+            pedidoService.marcarComoPagoPorPaymentIntentId("pi_repetido");
+        }
+
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+        assertEquals(StatusPedido.PAGO, pedido.getStatus());
+    }
+
+    @Test
+    @DisplayName("Webhook de falha repetido não deve devolver estoque novamente")
+    void webhookFalhaRepetidoDeveSerIdempotente() {
+        Pedido pedido = new Pedido();
+        pedido.setId("ped_cancelado");
+        pedido.setStatus(StatusPedido.CANCELADO);
+
+        when(pedidoRepository.findById("ped_cancelado")).thenReturn(Optional.of(pedido));
+
+        for (int i = 0; i < 10; i++) {
+            pedidoService.marcarComoCanceladoPorFalhaDePagamento("ped_cancelado");
+        }
+
+        verify(produtoRepository, never()).save(any(Produto.class));
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
 }

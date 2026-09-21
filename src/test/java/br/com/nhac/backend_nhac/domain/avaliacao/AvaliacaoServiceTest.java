@@ -89,9 +89,12 @@ class AvaliacaoServiceTest {
         when(usuarioRepository.findById("user_1")).thenReturn(Optional.of(usuarioLogado));
         when(pedidoRepository.findById("pedido_1")).thenReturn(Optional.of(pedido));
         when(avaliacaoRepository.existsByPedidoId("pedido_1")).thenReturn(false);
+        when(lojaRepository.findLockedById("loja_1")).thenReturn(Optional.of(loja));
+        when(avaliacaoRepository.countByLojaId("loja_1")).thenReturn(11L);
+        when(avaliacaoRepository.calcularMediaPorLojaId("loja_1")).thenReturn(45.0 / 11.0);
 
         // Simulando que ao salvar, a entidade receba um id
-        when(avaliacaoRepository.save(any(Avaliacao.class))).thenAnswer(invocation -> {
+        when(avaliacaoRepository.saveAndFlush(any(Avaliacao.class))).thenAnswer(invocation -> {
             Avaliacao a = invocation.getArgument(0);
             a.setId("aval_1");
             return a;
@@ -104,7 +107,7 @@ class AvaliacaoServiceTest {
         assertEquals("Muito bom!", resumo.comentario());
         assertEquals("João", resumo.nomeUsuario());
 
-        verify(avaliacaoRepository, times(1)).save(any(Avaliacao.class));
+        verify(avaliacaoRepository, times(1)).saveAndFlush(any(Avaliacao.class));
         verify(lojaRepository, times(1)).save(loja);
 
         // Validando o recálculo (Média antiga: 4.0, Total antigo: 10, Nova nota: 5)

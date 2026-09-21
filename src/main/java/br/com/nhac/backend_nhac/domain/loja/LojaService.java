@@ -1,5 +1,6 @@
 package br.com.nhac.backend_nhac.domain.loja;
 
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,12 +26,15 @@ public class LojaService {
     private final LojaRepository lojaRepository;
     private final UsuarioRepository usuarioRepository;
     private final LojaAccessService lojaAccessService;
+    private final FreteService freteService;
 
 
-    public LojaService(LojaRepository lojaRepository, UsuarioRepository usuarioRepository, LojaAccessService lojaAccessService) {
+    public LojaService(LojaRepository lojaRepository, UsuarioRepository usuarioRepository,
+                       LojaAccessService lojaAccessService, FreteService freteService) {
         this.lojaRepository = lojaRepository;
         this.usuarioRepository = usuarioRepository;
         this.lojaAccessService = lojaAccessService;
+        this.freteService = freteService;
     }
 
 
@@ -67,8 +71,7 @@ public class LojaService {
             throw new RegraDeNegocioException("Você já possui uma loja cadastrada.");
         }
 
-        long totalLojas = contarLojasCadastradas();
-        String novoId = String.format("loja_%04d", totalLojas + 1);
+        String novoId = "loja_" + UUID.randomUUID();
 
         Loja novaLoja = dto.toEntity();
         novaLoja.setId(novoId);
@@ -83,22 +86,11 @@ public class LojaService {
         return new LojaResumoDTO(lojaSalva);
     }
 
-    public long contarLojasCadastradas() {
-        return lojaRepository.count();
-    }
-
     public br.com.nhac.backend_nhac.domain.loja.dto.CalcularFreteResponseDTO calcularFrete(String lojaId, br.com.nhac.backend_nhac.domain.loja.dto.CalcularFreteRequestDTO dto) {
         Loja loja = lojaRepository.findByIdAndIsAbertoTrue(lojaId)
                 .orElseThrow(() -> new IdNaoEncontradoException("A loja com o id: " + lojaId + " não foi encontrada ou está fechada."));
 
-        java.math.BigDecimal frete = new java.math.BigDecimal("6.50");
-        Integer tempo = 45;
-
-        if (loja.getDadosOperacionais() != null && loja.getDadosOperacionais().getTaxaEntregaBase() != null) {
-            frete = loja.getDadosOperacionais().getTaxaEntregaBase().add(new java.math.BigDecimal("1.50"));
-        }
-
-        return new br.com.nhac.backend_nhac.domain.loja.dto.CalcularFreteResponseDTO(frete, tempo);
+        return freteService.calcular(loja);
     }
 
     public LojaDetalhesDTO obterMinhaLoja(Usuario usuarioLogado) {
@@ -148,16 +140,6 @@ public LojaDetalhesDTO atualizarLoja(String id, LojaCreateDTO dto, Usuario usuar
 
   @Transactional
 public LojaDetalhesDTO atualizarAbertura(String id, Boolean isAberto, Usuario usuarioLogado) {
-    // === DEBUG TEMPORÁRIO ===
-    System.out.println("=== atualizarAbertura chamado ===");
-    System.out.println("usuarioLogado: " + (usuarioLogado != null ? usuarioLogado.getId() : "NULL"));
-    if (usuarioLogado != null) {
-        System.out.println("papel: " + usuarioLogado.getPapel());
-        System.out.println("lojaVinculadaId: " + usuarioLogado.getLojaVinculadaId());
-    }
-    System.out.println("lojaId: " + id);
-    // ========================
-
     if (usuarioLogado == null) {
         throw new AcessoNegadoException("É necessário estar autenticado para atualizar a loja.");
     }

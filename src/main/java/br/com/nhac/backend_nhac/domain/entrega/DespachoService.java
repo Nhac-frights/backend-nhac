@@ -62,6 +62,11 @@ public class DespachoService {
             throw new RegraDeNegocioException("Este pedido já possui um entregador vinculado.");
         }
 
+        if (pedido.getStatus() != StatusPedido.PREPARANDO) {
+            throw new RegraDeNegocioException(
+                    "Só é possível despachar pedidos em PREPARANDO. Status atual: " + pedido.getStatus());
+        }
+
         if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null) {
             throw new RegraDeNegocioException("A loja do pedido não possui coordenadas GPS configuradas.");
         }
@@ -83,6 +88,27 @@ public class DespachoService {
 
         for (var item : entregadoresProximos) {
             Entregador entregador = item.entregador();
+
+            // Defesa adicional: status ONLINE sozinho não basta. Se por alguma
+            // inconsistência o entregador já estiver vinculado a corrida ativa,
+            // ele não recebe uma segunda oferta.
+            if (pedidoRepository.existsByEntregadorIdAndStatusIn(
+                    entregador.getId(),
+                    List.of(StatusPedido.PREPARANDO, StatusPedido.SAIU_ENTREGA))) {
+                continue;
+            }
+
+            var ofertaPendente = ofertaEntregaRepository
+                    .findByPedidoIdAndEntregadorIdAndStatus(
+                            pedido.getId(), entregador.getId(), StatusOferta.PENDENTE);
+            if (ofertaPendente.isPresent()) {
+                OfertaEntrega existente = ofertaPendente.get();
+                if (!existente.isExpirada()) {
+                    continue;
+                }
+                existente.setStatus(StatusOferta.EXPIRADA);
+                ofertaEntregaRepository.save(existente);
+            }
 
             OfertaEntrega oferta = OfertaEntrega.builder()
                     .id(UUID.randomUUID().toString())
@@ -125,23 +151,30 @@ public class DespachoService {
             throw new RegraDeNegocioException("Esta oferta expirou.");
         }
 
-        Pedido pedido = oferta.getPedido();
-        if (pedido.getEntregador() != null) {
-            oferta.setStatus(StatusOferta.EXPIRADA);
-            ofertaEntregaRepository.save(oferta);
+        String pedidoId = oferta.getPedido().getId();
+
+        // A disputa é resolvida pelo banco em uma única instrução condicional.
+        // Apenas uma transação consegue trocar entregador_id de NULL para um
+        // entregador; as demais recebem 0 linhas atualizadas.
+        int atualizados = pedidoRepository.atribuirEntregadorSeDisponivel(pedidoId, entregador);
+        if (atualizados == 0) {
+            OfertaEntrega ofertaPerdedora = ofertaEntregaRepository
+                    .findByIdAndEntregadorId(ofertaId, entregador.getId())
+                    .orElseThrow(() -> new IdNaoEncontradoException("Oferta não encontrada para este entregador."));
+            ofertaPerdedora.setStatus(StatusOferta.EXPIRADA);
+            ofertaEntregaRepository.save(ofertaPerdedora);
             throw new RegraDeNegocioException("Outro entregador já aceitou esta corrida antes de você.");
         }
 
-        // Vincula o entregador ao pedido. O status NÃO muda aqui: aceitar a
-        // oferta é só atribuição da corrida. SAIU_ENTREGA passa a valer só
-        // quando ele confirma a retirada na loja (coletarPedido), senão o
-        // cliente vê "saiu para entrega" com a comida ainda no balcão.
-        pedido.setEntregador(entregador);
-        pedidoRepository.save(pedido);
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado após aceite da oferta."));
+        OfertaEntrega ofertaAceita = ofertaEntregaRepository
+                .findByIdAndEntregadorId(ofertaId, entregador.getId())
+                .orElseThrow(() -> new IdNaoEncontradoException("Oferta não encontrada após aceite."));
 
-        // Marca oferta atual como ACEITA
-        oferta.setStatus(StatusOferta.ACEITA);
-        ofertaEntregaRepository.save(oferta);
+        // O status do pedido NÃO muda aqui: aceitar é só atribuição da corrida.
+        ofertaAceita.setStatus(StatusOferta.ACEITA);
+        ofertaEntregaRepository.save(ofertaAceita);
 
         // Atualiza status operacional do entregador para EM_ENTREGA
         entregador.setStatusOperacional(StatusOperacional.EM_ENTREGA);
@@ -150,7 +183,7 @@ public class DespachoService {
         // Expira as demais ofertas pendentes concorrentes deste pedido
         List<OfertaEntrega> concorrentes = ofertaEntregaRepository.findByPedidoIdAndStatus(pedido.getId(), StatusOferta.PENDENTE);
         for (OfertaEntrega conc : concorrentes) {
-            if (!conc.getId().equals(oferta.getId())) {
+            if (!conc.getId().equals(ofertaAceita.getId())) {
                 conc.setStatus(StatusOferta.EXPIRADA);
                 ofertaEntregaRepository.save(conc);
             }

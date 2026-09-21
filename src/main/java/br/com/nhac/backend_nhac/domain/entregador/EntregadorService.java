@@ -9,6 +9,7 @@ import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,9 @@ public class EntregadorService {
 
     private final EntregadorRepository entregadorRepository;
     private final UsuarioRepository usuarioRepository;
+
+    @Value("${nhac.entrega.localizacao-max-age-seconds:120}")
+    private long localizacaoMaxAgeSeconds = 120;
 
     public EntregadorService(EntregadorRepository entregadorRepository, UsuarioRepository usuarioRepository) {
         this.entregadorRepository = entregadorRepository;
@@ -81,6 +85,16 @@ public class EntregadorService {
             throw new RegraDeNegocioException("Entregador com cadastro inativo não pode alterar status.");
         }
 
+        if (dto.statusOperacional() == StatusOperacional.EM_ENTREGA) {
+            throw new RegraDeNegocioException(
+                    "EM_ENTREGA é controlado pelo backend e não pode ser definido manualmente.");
+        }
+
+        if (entregador.getStatusOperacional() == StatusOperacional.EM_ENTREGA) {
+            throw new RegraDeNegocioException(
+                    "Não é possível alterar manualmente o status durante uma entrega ativa.");
+        }
+
         entregador.setStatusOperacional(dto.statusOperacional());
         Entregador salvo = entregadorRepository.save(entregador);
         return new EntregadorResponseDTO(salvo);
@@ -102,8 +116,12 @@ public class EntregadorService {
 
         List<Entregador> online = entregadorRepository.findByStatusOperacionalAndAtivoTrue(StatusOperacional.ONLINE);
 
+        Instant limiteLocalizacao = Instant.now().minusSeconds(localizacaoMaxAgeSeconds);
+
         return online.stream()
                 .filter(e -> e.getLatitudeAtual() != null && e.getLongitudeAtual() != null)
+                .filter(e -> e.getUltimaAtualizacaoLocalizacao() != null
+                        && !e.getUltimaAtualizacaoLocalizacao().isBefore(limiteLocalizacao))
                 .map(e -> {
                     double dist = calcularDistanciaKm(lojaLat, lojaLng, e.getLatitudeAtual(), e.getLongitudeAtual());
                     return new EntregadorComDistancia(e, dist);

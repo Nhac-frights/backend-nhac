@@ -133,11 +133,6 @@ public class LojaController {
             @PathVariable String id,
             @RequestBody @Valid br.com.nhac.backend_nhac.domain.loja.dto.AtualizarAberturaDTO dto,
             @AuthenticationPrincipal Usuario usuarioLogado) {
-                System.out.println("=== atualizarAbertura CONTROLLER ===");
-System.out.println("usuarioLogado: " + (usuarioLogado != null ? usuarioLogado.getEmail() : "NULL"));
-System.out.println("papel: " + (usuarioLogado != null ? usuarioLogado.getPapel() : "NULL"));
-System.out.println("autoridades: " + (usuarioLogado != null ? usuarioLogado.getAuthorities() : "NULL"));
-System.out.println("===============================");
 
                 if (usuarioLogado == null) {
         throw new br.com.nhac.backend_nhac.exceptions.AcessoNegadoException("Usuário não autenticado ou token inválido.");
