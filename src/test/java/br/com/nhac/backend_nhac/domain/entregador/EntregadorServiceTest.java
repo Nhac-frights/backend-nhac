@@ -82,7 +82,8 @@ class EntregadorServiceTest {
         // tb_entregadores (consultado por AutoridadesFactory).
         assertEquals(Papel.CLIENTE, usuario.getPapel(),
                 "o cadastro de entregador não deve mais sobrescrever o papel");
-        verify(usuarioRepository, never()).save(any(Usuario.class));
+        assertEquals(dto.cpf(), usuario.getCpf());
+        verify(usuarioRepository).save(usuario);
         verify(entregadorRepository, times(1)).save(any(Entregador.class));
     }
 

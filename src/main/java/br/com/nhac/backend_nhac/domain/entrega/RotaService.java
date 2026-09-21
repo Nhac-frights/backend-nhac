@@ -45,9 +45,12 @@ public class RotaService {
         double origemLat = pedido.getLoja().getGeoLocalizacao().getGeoLat();
         double origemLng = pedido.getLoja().getGeoLocalizacao().getGeoLng();
 
-        // Se o pedido tiver coordenadas específicas de entrega salvas, usa elas; senão usa aproximação da loja
-        double destinoLat = pedido.getEntregaLatitude() != null ? pedido.getEntregaLatitude() : origemLat + 0.015;
-        double destinoLng = pedido.getEntregaLongitude() != null ? pedido.getEntregaLongitude() : origemLng + 0.015;
+        if (pedido.getEntregaLatitude() == null || pedido.getEntregaLongitude() == null) {
+            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
+                    "Rota indisponível: endereço do cliente sem coordenadas. Consulte o endereço da entrega.");
+        }
+        double destinoLat = pedido.getEntregaLatitude();
+        double destinoLng = pedido.getEntregaLongitude();
 
         PontoCoordenadaDTO origem = new PontoCoordenadaDTO(origemLat, origemLng);
         PontoCoordenadaDTO destino = new PontoCoordenadaDTO(destinoLat, destinoLng);

@@ -136,7 +136,13 @@ public class DespachoService {
 
     @Transactional
     public EntregaAtivaResponseDTO aceitarOferta(String ofertaId, Usuario usuarioLogado) {
-        Entregador entregador = entregadorService.buscarPorUsuario(usuarioLogado);
+        // Serializa aceites de pedidos diferentes para o mesmo entregador.
+        Entregador entregador = entregadorService.buscarPorUsuarioComBloqueio(usuarioLogado);
+        if (!entregador.isAtivo() || entregador.getStatusOperacional() != StatusOperacional.ONLINE
+                || pedidoRepository.existsByEntregadorIdAndStatusIn(entregador.getId(),
+                    List.of(StatusPedido.PREPARANDO, StatusPedido.SAIU_ENTREGA))) {
+            throw new RegraDeNegocioException("Você não está disponível para aceitar outra corrida.");
+        }
 
         OfertaEntrega oferta = ofertaEntregaRepository.findByIdAndEntregadorId(ofertaId, entregador.getId())
                 .orElseThrow(() -> new IdNaoEncontradoException("Oferta não encontrada para este entregador."));

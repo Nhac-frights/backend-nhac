@@ -16,7 +16,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
     Optional<Pedido> findByUsuarioIdAndIdempotencyKey(String usuarioId, String idempotencyKey);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE Pedido p SET p.entregador = :entregador, p.version = p.version + 1 WHERE p.id = :pedidoId AND p.entregador IS NULL")
+    @Query("UPDATE Pedido p SET p.entregador = :entregador, p.version = p.version + 1 WHERE p.id = :pedidoId AND p.entregador IS NULL AND p.status = br.com.nhac.backend_nhac.domain.pedido.StatusPedido.PREPARANDO")
     int atribuirEntregadorSeDisponivel(
             @Param("pedidoId") String pedidoId,
             @Param("entregador") Entregador entregador

@@ -11,6 +11,10 @@ public interface EntregadorRepository extends JpaRepository<Entregador, String> 
 
     Optional<Entregador> findByUsuarioId(String usuarioId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select e from Entregador e where e.usuario.id = :usuarioId")
+    Optional<Entregador> findLockedByUsuarioId(@org.springframework.data.repository.query.Param("usuarioId") String usuarioId);
+
     List<Entregador> findByStatusOperacionalAndAtivoTrue(StatusOperacional statusOperacional);
 
     boolean existsByUsuarioId(String usuarioId);
