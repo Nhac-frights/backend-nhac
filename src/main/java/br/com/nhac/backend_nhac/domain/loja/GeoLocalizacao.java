@@ -16,11 +16,11 @@ import lombok.Setter;
 @AllArgsConstructor
 public class GeoLocalizacao {
 
-    @Column(name = "geo_lat")
+    @Column(name = "geo_lat", columnDefinition = "DECIMAL(10,8)")
     @Schema(description = "Latitude exata da loja no GPS",example="-27.6672")
     private double geoLat;
 
-    @Column(name = "geo_lng")
+    @Column(name = "geo_lng", columnDefinition = "DECIMAL(11,8)")
     @Schema(description = "Longitude exata da loja no GPS", example = "-48.2233")
     private double geoLng;
 

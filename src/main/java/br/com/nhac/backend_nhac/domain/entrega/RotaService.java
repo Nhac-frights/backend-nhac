@@ -28,6 +28,9 @@ public class RotaService {
     @Value("${nhac.routing.osrm-url:https://router.project-osrm.org}")
     private String osrmBaseUrl = "https://router.project-osrm.org";
 
+    @Value("${nhac.routing.mock-mode:false}")
+    private boolean mockMode;
+
     public RotaService() {
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(4000);
@@ -45,18 +48,19 @@ public class RotaService {
         double origemLat = pedido.getLoja().getGeoLocalizacao().getGeoLat();
         double origemLng = pedido.getLoja().getGeoLocalizacao().getGeoLng();
 
-        if (pedido.getEntregaLatitude() == null || pedido.getEntregaLongitude() == null) {
+        if (!mockMode &&
+                (pedido.getEntregaLatitude() == null || pedido.getEntregaLongitude() == null)) {
             throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
                     "Rota indisponível: endereço do cliente sem coordenadas. Consulte o endereço da entrega.");
         }
-        double destinoLat = pedido.getEntregaLatitude();
-        double destinoLng = pedido.getEntregaLongitude();
+        double destinoLat = mockMode ? -23.551000 : pedido.getEntregaLatitude();
+        double destinoLng = mockMode ? -46.634000 : pedido.getEntregaLongitude();
 
         PontoCoordenadaDTO origem = new PontoCoordenadaDTO(origemLat, origemLng);
         PontoCoordenadaDTO destino = new PontoCoordenadaDTO(destinoLat, destinoLng);
         String lojaNome = pedido.getLoja().getNome();
 
-        try {
+        if (!mockMode) try {
             String url = String.format(Locale.US, "%s/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=polyline",
                     osrmBaseUrl, origemLng, origemLat, destinoLng, destinoLat);
 

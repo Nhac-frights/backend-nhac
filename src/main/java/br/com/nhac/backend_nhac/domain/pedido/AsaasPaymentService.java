@@ -28,6 +28,9 @@ public class AsaasPaymentService {
     @Value("${asaas.api.url:https://sandbox.asaas.com/api/v3}")
     private String asaasApiUrl;
 
+    @Value("${nhac.payments.mock-mode:false}")
+    private boolean mockMode;
+
     private RestTemplate restTemplate;
     private Gson gson = new Gson();
     private final PedidoRepository pedidoRepository;
@@ -68,6 +71,12 @@ public class AsaasPaymentService {
      * @return 
      */
     public PedidoCriadoDTO criarCobrancaPix(Pedido pedido, String nomePagador, String emailPagador, String cpfPagador) {
+        if (mockMode) {
+            pedido.setAsaasPaymentId("e2e_mock_pix_" + pedido.getId());
+            pedidoRepository.save(pedido);
+            return new PedidoCriadoDTO(
+                    pedido.getId(), null, "000201-e2e-mock", "e2e-mock-qr");
+        }
         try {
             String customerId = obterOuCriarCustomer(nomePagador, emailPagador, cpfPagador);
 

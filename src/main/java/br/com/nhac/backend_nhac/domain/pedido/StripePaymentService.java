@@ -23,6 +23,9 @@ public class StripePaymentService {
     @Value("${stripe.api.key}")
     private String stripeApiKey;
 
+    @Value("${nhac.payments.mock-mode:false}")
+    private boolean mockMode;
+
     private final PedidoRepository pedidoRepository; // ✅ ADICIONADO
 
     public StripePaymentService(PedidoRepository pedidoRepository) { // ✅ INJEÇÃO ADICIONADA
@@ -31,10 +34,14 @@ public class StripePaymentService {
 
     @PostConstruct
     public void init() {
-        Stripe.apiKey = stripeApiKey;
+        if (!mockMode) Stripe.apiKey = stripeApiKey;
     }
 
     public PedidoCriadoDTO criarPaymentIntentCartao(Pedido pedido) {
+        if (mockMode) {
+            return new PedidoCriadoDTO(
+                    pedido.getId(), "e2e_mock_client_secret", null, null);
+        }
         try {
             // Stripe espera o valor em centavos (ex: R$ 50.00 -> 5000)
             long valorEmCentavos = pedido.getValorTotal().multiply(new BigDecimal("100")).longValue();
