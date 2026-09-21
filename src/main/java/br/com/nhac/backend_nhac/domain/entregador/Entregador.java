@@ -27,6 +27,15 @@ public class Entregador {
     @Column(nullable = false, length = 30)
     private String cnh;
 
+    @Version
+    private Long version;
+
+    @Column(name = "cor_veiculo", length = 30)
+    private String corVeiculo;
+
+    @Column(name = "modelo_veiculo", length = 60)
+    private String modeloVeiculo;
+
     @Column(name = "placa_veiculo", nullable = false, length = 20)
     private String placaVeiculo;
 

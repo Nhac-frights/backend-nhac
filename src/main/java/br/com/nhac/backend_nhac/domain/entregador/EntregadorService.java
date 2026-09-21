@@ -50,6 +50,8 @@ public class EntregadorService {
                 .id(UUID.randomUUID().toString())
                 .usuario(usuario)
                 .cnh(dto.cnh())
+                .corVeiculo(dto.corVeiculo())
+                .modeloVeiculo(dto.modeloVeiculo())
                 .placaVeiculo(dto.placaVeiculo())
                 .tipoVeiculo(dto.tipoVeiculo())
                 .statusOperacional(StatusOperacional.OFFLINE)
@@ -67,6 +69,8 @@ public class EntregadorService {
         // SecurityFilter/StompAuthChannelInterceptor, que somam
         // ROLE_ENTREGADOR às authorities sem depender deste campo.
 
+        usuario.setCpf(dto.cpf().replaceAll("\\D", ""));
+        usuarioRepository.save(usuario);
         Entregador salvo = entregadorRepository.save(entregador);
         return new EntregadorResponseDTO(salvo);
     }
@@ -146,6 +150,12 @@ public class EntregadorService {
     @Transactional(readOnly = true)
     public java.util.Optional<Entregador> buscarPorUsuarioOuNulo(Usuario usuario) {
         return entregadorRepository.findByUsuarioId(usuario.getId());
+    }
+
+    @Transactional
+    public Entregador buscarPorUsuarioComBloqueio(Usuario usuario) {
+        return entregadorRepository.findLockedByUsuarioId(usuario.getId())
+                .orElseThrow(() -> new IdNaoEncontradoException("Perfil de entregador não encontrado."));
     }
 
     public static double calcularDistanciaKm(double lat1, double lon1, double lat2, double lon2) {

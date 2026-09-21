@@ -127,7 +127,7 @@ class DespachoServiceTest {
                 .expiraEm(Instant.now().plusSeconds(40))
                 .build();
 
-        when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
+        when(entregadorService.buscarPorUsuarioComBloqueio(usuarioEntregador)).thenReturn(entregador);
         when(ofertaEntregaRepository.findByIdAndEntregadorId("ofe_1", "ent_1")).thenReturn(Optional.of(oferta));
         when(pedidoRepository.atribuirEntregadorSeDisponivel("ped_1", entregador)).thenAnswer(invocation -> {
             pedido.setEntregador(entregador);
@@ -166,7 +166,7 @@ class DespachoServiceTest {
                 .expiraEm(Instant.now().plusSeconds(40))
                 .build();
 
-        when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
+        when(entregadorService.buscarPorUsuarioComBloqueio(usuarioEntregador)).thenReturn(entregador);
         when(ofertaEntregaRepository.findByIdAndEntregadorId("ofe_1", "ent_1"))
                 .thenReturn(Optional.of(oferta));
         when(pedidoRepository.atribuirEntregadorSeDisponivel("ped_1", entregador)).thenReturn(0);
@@ -244,7 +244,7 @@ class DespachoServiceTest {
                 .expiraEm(Instant.now().minusSeconds(10))
                 .build();
 
-        when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
+        when(entregadorService.buscarPorUsuarioComBloqueio(usuarioEntregador)).thenReturn(entregador);
         when(ofertaEntregaRepository.findByIdAndEntregadorId("ofe_exp", "ent_1")).thenReturn(Optional.of(ofertaExpirada));
 
         assertThrows(RegraDeNegocioException.class, () -> despachoService.aceitarOferta("ofe_exp", usuarioEntregador));
