@@ -218,11 +218,23 @@ public void verificarCodigoCadastro(String email, String codigoDigitado) {
 
     @Transactional(noRollbackFor = RegraDeNegocioException.class)
     public void verificarCodigoValido(String email, String codigoDigitado) {
+        CodigoVerificacaoEmail registro = conferirCodigoReset(email, codigoDigitado);
+        registro.setUtilizado(true);
+        codigoRepository.save(registro);
+    }
+
+    @Transactional(noRollbackFor = RegraDeNegocioException.class)
+    public void validarCodigoReset(String email, String codigoDigitado) {
+        conferirCodigoReset(email, codigoDigitado);
+    }
+
+    private CodigoVerificacaoEmail conferirCodigoReset(String email, String codigoDigitado) {
         email = email.trim().toLowerCase();
         LocalDateTime agora = LocalDateTime.now();
 
         CodigoVerificacaoEmail registro = codigoRepository
-                .findTopByEmailAndUtilizadoFalseAndDataExpiracaoAfterOrderByCriadoEmDesc(email, agora)
+                .findTopByEmailAndTipoAndUtilizadoFalseAndDataExpiracaoAfterOrderByCriadoEmDesc(
+                        email, CodigoVerificacaoEmail.TipoCodigo.RESET_SENHA, agora)
                 .orElseThrow(() -> new RegraDeNegocioException("Código expirado ou não encontrado. Solicite um novo código."));
 
         if (registro.getTentativas() >= MAX_TENTATIVAS) {
@@ -237,8 +249,7 @@ public void verificarCodigoCadastro(String email, String codigoDigitado) {
             throw new RegraDeNegocioException("Código de verificação inválido.");
         }
 
-        registro.setUtilizado(true);
-        codigoRepository.save(registro);
+        return registro;
     }
 
     @Transactional

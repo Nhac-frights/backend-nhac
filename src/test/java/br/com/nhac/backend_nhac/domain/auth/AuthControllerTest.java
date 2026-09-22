@@ -76,6 +76,25 @@ class AuthControllerTest {
     @InjectMocks
     private AuthController authController;
 
+    @Test
+    void deveValidarCodigoSemRedefinirSenha() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/validar-codigo-redefinicao/email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"cliente@exemplo.com\",\"codigo\":\"123456\"}"))
+                .andExpect(status().isOk());
+        verify(verificacaoEmailService).validarCodigoReset("cliente@exemplo.com", "123456");
+        verify(verificacaoEmailService, never()).verificarCodigoValido(any(), any());
+    }
+
+    @Test
+    void deveRejeitarFormatoInvalidoDoCodigo() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/validar-codigo-redefinicao/email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"cliente@exemplo.com\",\"codigo\":\"abc123\"}"))
+                .andExpect(status().isBadRequest());
+        verify(verificacaoEmailService, never()).validarCodigoReset(any(), any());
+    }
+
     @BeforeEach
     void setUp() {
         this.mockMvc = MockMvcBuilders.standaloneSetup(authController).build();
