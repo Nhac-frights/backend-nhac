@@ -111,3 +111,10 @@ nhac.cupom.boas-vindas.validade-dias=30
 Os valores devem ser positivos e o mínimo deve superar o desconto. Novas
 configurações afetam apenas resgates futuros. A migração V1003 adiciona o dono
 e a origem do cupom, unicidade por conta/origem e o desconto registrado no pedido.
+
+### Imagem do CI
+
+O job `docker` publica o nome normalizado em minúsculas como output
+`image-name`. O Trivy usa esse mesmo nome com o digest do build e autenticação
+GHCR de leitura. O upload SARIF só roda quando o scanner produziu o arquivo;
+um erro do scanner continua fazendo o job falhar.
