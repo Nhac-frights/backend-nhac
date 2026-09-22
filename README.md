@@ -90,3 +90,24 @@ Todas as exceções tratadas retornam o formato padrão:
 ### Testes de integração e concorrência
 
 A suíte usa H2 para integrações rápidas e MariaDB via Testcontainers para cenários em que a semântica real do banco importa, como locking, concorrência e constraints. O mvn verify também executa um teste que aplica todas as migrations Flyway em um MariaDB limpo.
+
+### Cupom de boas-vindas
+
+O cliente autenticado pode resgatar uma vez por conta em
+`POST /api/v1/cupons/boas-vindas`, listar em `GET /api/v1/cupons` e validar a
+prévia em `POST /api/v1/cupons/validar` com `cupomId` e `subtotal`.
+O checkout recebe `cupomId` e recalcula o desconto usando os preços do banco.
+Uso e criação do pedido são transacionais; replays não gastam outro uso e
+cancelamentos devolvem o cupom sem renovar sua validade.
+
+Configuração (valores padrão):
+
+```properties
+nhac.cupom.boas-vindas.valor=5.00
+nhac.cupom.boas-vindas.minimo=25.00
+nhac.cupom.boas-vindas.validade-dias=30
+```
+
+Os valores devem ser positivos e o mínimo deve superar o desconto. Novas
+configurações afetam apenas resgates futuros. A migração V1003 adiciona o dono
+e a origem do cupom, unicidade por conta/origem e o desconto registrado no pedido.
