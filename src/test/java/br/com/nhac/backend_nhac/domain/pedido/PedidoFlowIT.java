@@ -59,6 +59,47 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
     @MockitoBean
     private StripePaymentService stripePaymentService;
 
+    @Autowired
+    private br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService;
+
+    @Test
+    void cupomDescontaNoServidorReplayNaoConsomeNovamenteECancelamentoDevolve() throws Exception {
+        var cupom = cupomService.ganharBoasVindas(usuario.getId());
+        String body = """
+            {"lojaId":"loja-123","formaPagamento":"DINHEIRO","cupomId":"%s",
+             "enderecoEntrega":{"rua":"Rua Teste","numero":"123","bairro":"Centro","cidade":"Cidade","estado":"SP","cep":"00000-000"},
+             "itens":[{"produtoId":"%s","nome":"Pizza","quantidade":1}]}
+            """.formatted(cupom.id(), produto.getId());
+        var result = mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .header("Idempotency-Key", "pedido-cupom").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated()).andReturn();
+        String pedidoId = objectMapper.readTree(result.getResponse().getContentAsString()).get("pedidoId").asText();
+        var pedido = pedidoRepository.findById(pedidoId).orElseThrow();
+        assertEquals(0, pedido.getValorTotal().compareTo(new BigDecimal("40.00")));
+        assertEquals(0, pedido.getDesconto().compareTo(new BigDecimal("5.00")));
+        assertEquals("USADO", cupomService.listar(usuario.getId()).getFirst().status());
+        mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .header("Idempotency-Key", "pedido-cupom").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/pedidos/" + pedidoId + "/cancelar")
+                .header("Authorization", "Bearer " + token)).andExpect(status().isNoContent());
+        assertEquals("DISPONIVEL", cupomService.listar(usuario.getId()).getFirst().status());
+    }
+
+    @Test
+    void falhaNoPagamentoNaoConsomeCupom() throws Exception {
+        var cupom = cupomService.ganharBoasVindas(usuario.getId());
+        Mockito.when(stripePaymentService.criarPaymentIntentCartao(Mockito.any()))
+                .thenThrow(new RuntimeException("Gateway indisponível"));
+        PedidoCreateDTO dto = new PedidoCreateDTO("loja-123", "CARTAO", null, null, null,
+                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Centro", "Cidade", "SP", "00000-000", null),
+                cupom.id(), List.of(new PedidoCreateDTO.ItemPedidoDTO(produto.getId(), "Pizza", null, 1)));
+        mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .header("Idempotency-Key", "falha-cupom").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))).andExpect(status().isPaymentRequired());
+        assertEquals("DISPONIVEL", cupomService.listar(usuario.getId()).getFirst().status());
+    }
+
     @BeforeEach
     public void prepareData() {
         produtoRepository.deleteAll();

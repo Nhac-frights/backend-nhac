@@ -45,6 +45,7 @@ import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
 @Service
 public class PedidoService {
 
+    private final br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService;
     private final PedidoRepository pedidoRepository;
     private final LojaRepository lojaRepository;
     private final ProdutoRepository produtoRepository;
@@ -60,7 +61,9 @@ public class PedidoService {
                           UsuarioRepository usuarioRepository, LojaAccessService lojaAccessService,
                           StripePaymentService stripePaymentService, AsaasPaymentService asaasPaymentService,
                           ApplicationEventPublisher eventPublisher, FreteService freteService,
-                          EntregadorRepository entregadorRepository) {
+                          EntregadorRepository entregadorRepository,
+                          br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService) {
+        this.cupomService = cupomService;
         this.pedidoRepository = pedidoRepository;
         this.lojaRepository = lojaRepository;
         this.produtoRepository = produtoRepository;
@@ -164,7 +167,14 @@ public class PedidoService {
                 ? loja.getDadosOperacionais().getTaxaEntregaBase()
                 : new BigDecimal("5.00");
         pedido.setTaxaFrete(taxaFrete);
-        pedido.setValorTotal(valorTotalItens.add(taxaFrete));
+        BigDecimal desconto = BigDecimal.ZERO;
+        if (dto.cupomId() != null && !dto.cupomId().isBlank()) {
+            desconto = cupomService.consumir(usuarioLogado.getId(), dto.cupomId(), valorTotalItens);
+        } else {
+            pedido.setCupomId(null);
+        }
+        pedido.setDesconto(desconto);
+        pedido.setValorTotal(valorTotalItens.subtract(desconto).add(taxaFrete));
 
         Pedido pedidoSalvo = pedidoRepository.save(pedido);
 
@@ -394,6 +404,9 @@ public class PedidoService {
 
         pedido.alterarStatus(StatusPedido.CANCELADO);
         devolverEstoque(pedido);
+        if (pedido.getCupomId() != null && pedido.getDesconto().signum() > 0) {
+            cupomService.devolver(pedido.getUsuarioId(), pedido.getCupomId());
+        }
 
         if (pedido.getEntregador() != null) {
             pedido.getEntregador().setStatusOperacional(StatusOperacional.ONLINE);

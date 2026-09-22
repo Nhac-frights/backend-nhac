@@ -99,6 +99,9 @@ public class Pedido {
     @Column(name = "idempotency_fingerprint", length = 64)
     private String idempotencyFingerprint;
 
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal desconto = BigDecimal.ZERO;
+
     @Column(name = "cupom_id")
     private String cupomId;
 
