@@ -14,7 +14,6 @@ concurrency:
 env:
   JAVA_VERSION: "25"
   JAVA_DISTRIBUTION: "temurin"
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
 
 permissions:
   contents: read
@@ -94,7 +93,7 @@ jobs:
 
       - name: 📤 Upload resultado do Trivy (SARIF)
         uses: github/codeql-action/upload-sarif@v4.37.3
-        if: always()
+        if: ${{ always() && hashFiles('trivy-fs-results.sarif') != '' }}
         with:
           sarif_file: trivy-fs-results.sarif
           category: trivy-dependencies
@@ -112,15 +111,21 @@ jobs:
       packages: write
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
+      image-name: ${{ steps.image.outputs.name }}
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
+
+      - name: Normalizar nome da imagem
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: 🏷️ Metadata/tags
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ steps.image.outputs.name }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
@@ -158,12 +163,20 @@ jobs:
     needs: docker
     permissions:
       contents: read
+      packages: read
       security-events: write
     steps:
+      - name: Login no GHCR para leitura da imagem
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: 🔍 Trivy — scan da imagem
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ env.IMAGE_NAME }}@${{ needs.docker.outputs.image-digest }}
+          image-ref: ${{ needs.docker.outputs.image-name }}@${{ needs.docker.outputs.image-digest }}
           format: sarif
           output: trivy-image-results.sarif
           severity: CRITICAL,HIGH
@@ -171,7 +184,7 @@ jobs:
 
       - name: 📤 Upload resultado do Trivy (SARIF)
         uses: github/codeql-action/upload-sarif@v4.37.3
-        if: always()
+        if: ${{ always() && hashFiles('trivy-image-results.sarif') != '' }}
         with:
           sarif_file: trivy-image-results.sarif
           category: trivy-image

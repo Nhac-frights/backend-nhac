@@ -224,6 +224,14 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Validar código de redefinição de senha", description = "Confere o código sem consumi-lo. A redefinição verifica novamente e consome o código.")
+    @PostMapping("/validar-codigo-redefinicao/email")
+    public ResponseEntity<Void> validarCodigoRedefinicaoEmail(
+            @RequestBody @Valid br.com.nhac.backend_nhac.domain.auth.dto.ValidarCodigoRedefinicaoEmailDTO dto) {
+        verificacaoEmailService.validarCodigoReset(dto.email(), dto.codigo());
+        return ResponseEntity.ok().build();
+    }
+
     @Operation(summary = "Concluir redefinição de senha por e-mail", description = "Valida o código do e-mail e atualiza a senha do usuário.")
     @PostMapping("/redefinir-senha/email")
     public ResponseEntity<Void> redefinirSenhaEmail(

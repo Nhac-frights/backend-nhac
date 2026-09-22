@@ -22,7 +22,9 @@ public record PedidoResponseDTO(
         @Schema(description = "Status atual do pedido") StatusPedido status,
         @Schema(description = "Data e hora da criação") Instant criadoEm,
         @Schema(description = "Endereço onde será entregue") EnderecoEntregaResponseDTO enderecoEntrega,
-        @Schema(description = "Itens do pedido") List<ItemPedidoResponseDTO> itens
+        @Schema(description = "Itens do pedido") List<ItemPedidoResponseDTO> itens,
+        BigDecimal desconto,
+        String cupomId
 ) {
     public PedidoResponseDTO(Pedido pedido) {
         this(
@@ -53,7 +55,9 @@ public record PedidoResponseDTO(
                         item.getImagemUrl(),
                         item.getPrecoHistorico(),
                         item.getQuantidade()
-                )).toList() : List.of()
+                )).toList() : List.of(),
+                pedido.getDesconto(),
+                pedido.getCupomId()
         );
     }
 
