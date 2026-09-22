@@ -9,6 +9,11 @@ import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
 import br.com.nhac.backend_nhac.domain.produto.Produto;
 import br.com.nhac.backend_nhac.domain.produto.ProdutoRepository;
+import br.com.nhac.backend_nhac.domain.pedido.EnderecoEntrega;
+import br.com.nhac.backend_nhac.domain.pedido.ItemPedido;
+import br.com.nhac.backend_nhac.domain.pedido.Pedido;
+import br.com.nhac.backend_nhac.domain.pedido.PedidoRepository;
+import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 import br.com.nhac.backend_nhac.domain.usuario.EnderecoUsuario;
 import br.com.nhac.backend_nhac.domain.usuario.EnderecoUsuarioRepository;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
@@ -33,14 +38,18 @@ import java.util.List;
 public class E2EDataLoader implements CommandLineRunner {
 
     public static final String USER_ID = "e2e-cliente-001";
+    public static final String MERCHANT_ID = "e2e-lojista-001";
+    public static final String ORDER_CUSTOMER_ID = "e2e-cliente-lojista-001";
     public static final String STORE_ID = "e2e-loja-001";
     public static final String PRODUCT_ID = "e2e-produto-001";
+    public static final String MERCHANT_ORDER_ID = "e2e-pedido-lojista-001";
 
     private final JdbcTemplate jdbcTemplate;
     private final UsuarioRepository usuarioRepository;
     private final EnderecoUsuarioRepository enderecoRepository;
     private final LojaRepository lojaRepository;
     private final ProdutoRepository produtoRepository;
+    private final PedidoRepository pedidoRepository;
     private final PasswordEncoder passwordEncoder;
 
     public E2EDataLoader(
@@ -49,6 +58,7 @@ public class E2EDataLoader implements CommandLineRunner {
             EnderecoUsuarioRepository enderecoRepository,
             LojaRepository lojaRepository,
             ProdutoRepository produtoRepository,
+            PedidoRepository pedidoRepository,
             PasswordEncoder passwordEncoder
     ) {
         this.jdbcTemplate = jdbcTemplate;
@@ -56,6 +66,7 @@ public class E2EDataLoader implements CommandLineRunner {
         this.enderecoRepository = enderecoRepository;
         this.lojaRepository = lojaRepository;
         this.produtoRepository = produtoRepository;
+        this.pedidoRepository = pedidoRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -76,6 +87,24 @@ public class E2EDataLoader implements CommandLineRunner {
         cliente.setEmailVerificado(true);
         cliente.setAtivo(true);
         usuarioRepository.saveAndFlush(cliente);
+
+        Usuario lojista = novoUsuario(
+                MERCHANT_ID,
+                "Lojista E2E",
+                "e2e.lojista@nhac.local",
+                "+5511999990002",
+                Papel.LOJISTA
+        );
+        usuarioRepository.saveAndFlush(lojista);
+
+        Usuario clientePedidoLojista = novoUsuario(
+                ORDER_CUSTOMER_ID,
+                "Cliente do Pedido E2E",
+                "e2e.pedido@nhac.local",
+                "+5511999990003",
+                Papel.CLIENTE
+        );
+        usuarioRepository.saveAndFlush(clientePedidoLojista);
 
         EnderecoUsuario endereco = new EnderecoUsuario(
                 "e2e-endereco-001",
@@ -109,6 +138,7 @@ public class E2EDataLoader implements CommandLineRunner {
 
         Loja loja = Loja.builder()
                 .id(STORE_ID)
+                .usuarioId(MERCHANT_ID)
                 .nome("Loja E2E")
                 .descricao("Loja determinística para testes E2E")
                 .categoria("E2E")
@@ -138,6 +168,50 @@ public class E2EDataLoader implements CommandLineRunner {
         produto.setPercentualDesconto(0);
         produto.setEstoque(20);
         produtoRepository.saveAndFlush(produto);
+
+        Pedido pedidoLojista = new Pedido();
+        pedidoLojista.setId(MERCHANT_ORDER_ID);
+        pedidoLojista.setUsuarioId(ORDER_CUSTOMER_ID);
+        pedidoLojista.setLoja(loja);
+        pedidoLojista.setValorTotal(new BigDecimal("30.00"));
+        pedidoLojista.setTaxaFrete(new BigDecimal("5.00"));
+        pedidoLojista.setFormaPagamento("DINHEIRO");
+        pedidoLojista.setTrocoPara(null);
+        pedidoLojista.setObservacao("Pedido determinístico para o E2E do lojista");
+        pedidoLojista.setStatus(StatusPedido.PAGO);
+        pedidoLojista.setEnderecoEntrega(new EnderecoEntrega(
+                "Praça da Sé", "100", "Sé", "São Paulo", "SP", "01001-000", "Fixture E2E"
+        ));
+        pedidoLojista.setEntregaLatitude(-23.550520);
+        pedidoLojista.setEntregaLongitude(-46.633308);
+        pedidoLojista.setCriadoEm(Instant.parse("2026-01-01T12:00:00Z"));
+        pedidoLojista.setDesconto(BigDecimal.ZERO);
+
+        ItemPedido itemPedido = new ItemPedido();
+        itemPedido.setId("e2e-item-lojista-001");
+        itemPedido.setProduto(produto);
+        itemPedido.setNome(produto.getNome());
+        itemPedido.setImagemUrl(produto.getImagemUrl());
+        itemPedido.setPrecoHistorico(produto.getPreco());
+        itemPedido.setQuantidade(1);
+        pedidoLojista.adicionarItem(itemPedido);
+        pedidoRepository.saveAndFlush(pedidoLojista);
+    }
+
+    private Usuario novoUsuario(String id, String nome, String email, String telefone, Papel papel) {
+        Usuario usuario = new Usuario();
+        usuario.setId(id);
+        usuario.setNome(nome);
+        usuario.setEmail(email);
+        usuario.setTelefone(telefone);
+        usuario.setImagemUrl("");
+        usuario.setSenha(passwordEncoder.encode("NhacE2E#123"));
+        usuario.setEnderecos(new ArrayList<>());
+        usuario.setPapel(papel);
+        usuario.setTelefoneVerificado(true);
+        usuario.setEmailVerificado(true);
+        usuario.setAtivo(true);
+        return usuario;
     }
 
     private void limparDadosDaAplicacao() {
