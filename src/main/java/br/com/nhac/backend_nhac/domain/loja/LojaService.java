@@ -1,5 +1,9 @@
 package br.com.nhac.backend_nhac.domain.loja;
 
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+import static br.com.nhac.backend_nhac.config.cache.CacheNames.*;
+
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -38,6 +42,7 @@ public class LojaService {
     }
 
 
+    @Cacheable(cacheNames = LOJAS, condition = "#p4 >= 0 && #p4 < 20 && #p5 > 0 && #p5 <= 100 && #p1 == null && #p2 == null")
     public Page<LojaResumoDTO> obterLojasPaginadas(String nome, Double lat, Double lng, Double raio, int page, int size) {
         Pageable paginacao = PageRequest.of(page, size);
 
@@ -51,6 +56,7 @@ public class LojaService {
         return lojas.map(LojaResumoDTO::new);
     }
 
+    @Cacheable(cacheNames = LOJA)
     public LojaDetalhesDTO obterLojaId(String id) {
 
         Loja loja = lojaRepository.findByIdAndIsAbertoTrue(id)
@@ -62,6 +68,7 @@ public class LojaService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {LOJAS, LOJA}, allEntries = true)
     public LojaResumoDTO criarLoja(LojaCreateDTO dto, Usuario usuarioLogado) {
         if (usuarioLogado == null) {
             throw new AcessoNegadoException("É necessário estar autenticado para cadastrar uma loja.");
@@ -105,8 +112,9 @@ public class LojaService {
     return new LojaDetalhesDTO(loja);
 }
 
-@Transactional
-public LojaDetalhesDTO atualizarLoja(String id, LojaCreateDTO dto, Usuario usuarioLogado) {
+    @Transactional
+    @CacheEvict(cacheNames = {LOJAS, LOJA, PRODUTOS, PRODUTO}, allEntries = true)
+    public LojaDetalhesDTO atualizarLoja(String id, LojaCreateDTO dto, Usuario usuarioLogado) {
     if (usuarioLogado == null) {
         throw new AcessoNegadoException("É necessário estar autenticado para atualizar a loja.");
     }
@@ -138,8 +146,9 @@ public LojaDetalhesDTO atualizarLoja(String id, LojaCreateDTO dto, Usuario usuar
         return new LojaDetalhesDTO(lojaRepository.save(loja));
     }
 
-  @Transactional
-public LojaDetalhesDTO atualizarAbertura(String id, Boolean isAberto, Usuario usuarioLogado) {
+    @Transactional
+    @CacheEvict(cacheNames = {LOJAS, LOJA, PRODUTOS, PRODUTO}, allEntries = true)
+    public LojaDetalhesDTO atualizarAbertura(String id, Boolean isAberto, Usuario usuarioLogado) {
     if (usuarioLogado == null) {
         throw new AcessoNegadoException("É necessário estar autenticado para atualizar a loja.");
     }

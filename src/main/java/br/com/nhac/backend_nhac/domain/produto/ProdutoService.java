@@ -1,5 +1,9 @@
 package br.com.nhac.backend_nhac.domain.produto;
 
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+import static br.com.nhac.backend_nhac.config.cache.CacheNames.*;
+
 import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaAccessService;
 import br.com.nhac.backend_nhac.domain.produto.Produto;
@@ -34,6 +38,7 @@ public class ProdutoService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public Produto cadastrarProduto(ProdutoCreateDTO dto, Usuario usuarioLogado) {
         // ADMIN tem bypass na checagem de ownership, mas ainda precisa de uma loja associada
         boolean isAdmin = usuarioLogado.getPapel().name().equals("ADMIN");
@@ -50,6 +55,7 @@ public class ProdutoService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = PRODUTO)
     public ProdutoResumoDTO buscarProdutoPorId(String produtoId) {
         Produto produto = produtoRepository.findByIdAndIsAtivoTrue(produtoId)
                 .orElseThrow(() -> new IdNaoEncontradoException(
@@ -59,12 +65,14 @@ public class ProdutoService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = PRODUTOS, condition = "#p4.isPaged() && #p4.pageNumber < 20 && #p4.pageSize <= 100")
     public Page<ProdutoResumoDTO> listarProdutos(String lojaId, BigDecimal precoMaximo, String categoriaMenu, String nome, Pageable pageable) {
         Page<Produto> produtos = produtoRepository.findAllWithFilters(lojaId, categoriaMenu, nome, precoMaximo, pageable);
         return produtos.map(ProdutoResumoDTO::new);
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public ProdutoResumoDTO atualizarProduto(String id, br.com.nhac.backend_nhac.domain.produto.dto.ProdutoUpdateDTO dto, Usuario usuarioLogado) {
         Produto produto = produtoRepository.findById(id)
                 .orElseThrow(() -> new IdNaoEncontradoException("O produto com o id: " + id + " não foi encontrado."));
@@ -97,6 +105,7 @@ public class ProdutoService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public void desativarProduto(String id, Usuario usuarioLogado) {
         Produto produto = produtoRepository.findById(id)
                 .orElseThrow(() -> new IdNaoEncontradoException("O produto com o id: " + id + " não foi encontrado."));
@@ -116,6 +125,7 @@ public class ProdutoService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public ProdutoResumoDTO ativarProduto(String id, Usuario usuarioLogado) {
         Produto produto = produtoRepository.findById(id)
                 .orElseThrow(() -> new IdNaoEncontradoException("O produto com o id: " + id + " não foi encontrado."));
@@ -150,6 +160,7 @@ public class ProdutoService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = PRODUTO_AVALIACOES)
     public br.com.nhac.backend_nhac.domain.produto.dto.ProdutoAvaliacaoResumoDTO buscarResumoAvaliacoes(String produtoId) {
         if (!produtoRepository.existsById(produtoId)) {
             throw new IdNaoEncontradoException("O produto com o id: " + produtoId + " nǜo foi encontrado.");

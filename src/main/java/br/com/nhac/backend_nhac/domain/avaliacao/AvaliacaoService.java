@@ -1,5 +1,8 @@
 package br.com.nhac.backend_nhac.domain.avaliacao;
 
+import org.springframework.cache.annotation.CacheEvict;
+import static br.com.nhac.backend_nhac.config.cache.CacheNames.*;
+
 import br.com.nhac.backend_nhac.domain.avaliacao.Avaliacao;
 import br.com.nhac.backend_nhac.domain.avaliacao.dto.AvaliacaoCreateDTO;
 import br.com.nhac.backend_nhac.domain.avaliacao.dto.AvaliacaoResumoDTO;
@@ -34,6 +37,7 @@ public class AvaliacaoService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {LOJAS, LOJA, PRODUTO_AVALIACOES}, allEntries = true)
     public AvaliacaoResumoDTO criarAvaliacao(String usuarioId, AvaliacaoCreateDTO dto) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Usuário não encontrado."));

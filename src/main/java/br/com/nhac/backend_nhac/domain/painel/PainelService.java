@@ -29,10 +29,8 @@ import java.util.stream.Collectors;
  * maioria dos lojistas. Se isso precisar variar por loja/usuário no futuro,
  * é só trocar ZONA_PADRAO por um valor vindo da Loja ou do Usuario.
  *
- * Pergunta em aberto #7 (cache): não coloquei @Cacheable ainda — o projeto
- * usa Caffeine em outros pontos (LojaService/ProdutoService), mas prefiro
- * confirmar o TTL (sugeri 30-60s na spec) antes de cachear um número que
- * envolve dinheiro. Fácil de adicionar depois.
+ * Consulta sem cache: totais financeiros e pedidos precisam refletir as
+ * alterações atuais. O cache público de catálogo não participa desta consulta.
  */
 @Service
 public class PainelService {
