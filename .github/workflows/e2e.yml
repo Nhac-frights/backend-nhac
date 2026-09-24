@@ -62,6 +62,9 @@ jobs:
           ref: eu-e-tu
           path: Nhac
 
+      - name: Preparar ambiente do app E2E
+        run: cp Nhac/.env.example Nhac/.env
+
       - name: Setup Java 25
         uses: actions/setup-java@v4
         with:
