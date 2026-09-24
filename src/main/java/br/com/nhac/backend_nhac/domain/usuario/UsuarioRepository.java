@@ -16,6 +16,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, String> {
 
     Optional<Usuario> findByTelefone(String telefone);
 
+    boolean existsByCpfAndIdNot(String cpf, String id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Usuario> findLockedById(String id);
 

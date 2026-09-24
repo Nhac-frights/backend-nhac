@@ -2,6 +2,9 @@ package br.com.nhac.backend_nhac.domain.entregador;
 
 import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarLocalizacaoDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarStatusDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarVeiculoDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarDocumentosDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarDadosBancariosDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.CadastroEntregadorDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.EntregadorResponseDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
@@ -16,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -79,6 +83,39 @@ public class EntregadorService {
     public EntregadorResponseDTO obterPerfil(Usuario usuario) {
         Entregador entregador = buscarPorUsuario(usuario);
         return new EntregadorResponseDTO(entregador);
+    }
+
+    @Transactional
+    public EntregadorResponseDTO atualizarVeiculo(AtualizarVeiculoDTO dto, Usuario usuario) {
+        Entregador entregador = buscarPorUsuario(usuario);
+        if (entregador.getStatusOperacional() == StatusOperacional.EM_ENTREGA) {
+            throw new RegraDeNegocioException("Não é possível trocar o veículo durante uma entrega.");
+        }
+        entregador.setTipoVeiculo(dto.tipoVeiculo());
+        entregador.setPlacaVeiculo(dto.placaVeiculo().trim().toUpperCase(Locale.ROOT));
+        entregador.setModeloVeiculo(dto.modeloVeiculo() == null ? null : dto.modeloVeiculo().trim());
+        entregador.setCorVeiculo(dto.corVeiculo() == null ? null : dto.corVeiculo().trim());
+        return new EntregadorResponseDTO(entregadorRepository.save(entregador));
+    }
+
+    @Transactional
+    public EntregadorResponseDTO atualizarDocumentos(AtualizarDocumentosDTO dto, Usuario usuario) {
+        Entregador entregador = buscarPorUsuario(usuario);
+        if (usuarioRepository.existsByCpfAndIdNot(dto.cpf(), usuario.getId())) {
+            throw new RegraDeNegocioException("Este CPF já está em uso por outra conta.");
+        }
+        usuario.setCpf(dto.cpf());
+        entregador.setCnh(dto.cnh());
+        usuarioRepository.save(usuario);
+        return new EntregadorResponseDTO(entregadorRepository.save(entregador));
+    }
+
+    @Transactional
+    public EntregadorResponseDTO atualizarDadosBancarios(AtualizarDadosBancariosDTO dto, Usuario usuario) {
+        Entregador entregador = buscarPorUsuario(usuario);
+        entregador.setTipoChavePix(dto.tipoChavePix());
+        entregador.setChavePix(dto.chavePix().trim());
+        return new EntregadorResponseDTO(entregadorRepository.save(entregador));
     }
 
     @Transactional
