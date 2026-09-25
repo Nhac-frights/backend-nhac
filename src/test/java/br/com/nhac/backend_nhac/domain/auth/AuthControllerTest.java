@@ -105,7 +105,7 @@ class AuthControllerTest {
     void deveAutenticarComSmsComSucesso() throws Exception {
         br.com.nhac.backend_nhac.domain.auth.dto.ValidarCodigoSmsDTO requisicao = new br.com.nhac.backend_nhac.domain.auth.dto.ValidarCodigoSmsDTO("+5511999999999", "123456", null);
 
-        LoginResponseDTO respostaEsperada = new LoginResponseDTO("jwt_gerado_pelo_backend_sms", "user_novo", "Novo Usuário", true, "CLIENTE");
+        LoginResponseDTO respostaEsperada = new LoginResponseDTO("jwt_gerado_pelo_backend_sms", "user_novo", "Novo Usuário", true, "CLIENTE", null);
 
         when(smsAuthService.autenticarComSms(requisicao)).thenReturn(respostaEsperada);
 
@@ -217,7 +217,7 @@ class AuthControllerTest {
     @DisplayName("Deve permitir login social de conta de loja quando o header X-App-Origin estiver ausente")
     void devePermitirLoginSocialSemHeaderDeOrigem() {
         SocialLoginRequestDTO requisicao = new SocialLoginRequestDTO("token_google_loja");
-        LoginResponseDTO respostaEsperada = new LoginResponseDTO("jwt_loja", "user_loja", "Dona da Loja", false, "LOJISTA");
+        LoginResponseDTO respostaEsperada = new LoginResponseDTO("jwt_loja", "user_loja", "Dona da Loja", false, "LOJISTA", null);
 
         Usuario lojista = new Usuario();
         lojista.setId("user_loja");
@@ -312,7 +312,7 @@ class AuthControllerTest {
     void deveAutenticarComGoogleComSucesso() throws Exception {
         SocialLoginRequestDTO requisicao = new SocialLoginRequestDTO("token_google_falso_mas_mockado");
 
-        LoginResponseDTO respostaEsperada = new LoginResponseDTO("jwt_gerado_pelo_backend", "user_1", "Usuário Nhac", false, "CLIENTE");
+        LoginResponseDTO respostaEsperada = new LoginResponseDTO("jwt_gerado_pelo_backend", "user_1", "Usuário Nhac", false, "CLIENTE", null);
 
         when(googleAuthService.autenticarComGoogle("token_google_falso_mas_mockado")).thenReturn(respostaEsperada);
 
