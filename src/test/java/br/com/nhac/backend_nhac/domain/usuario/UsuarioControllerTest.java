@@ -73,7 +73,8 @@ class UsuarioControllerTest {
                 "matheus@nhac.com",
                 "11999998888",
                 null,
-                br.com.nhac.backend_nhac.domain.usuario.Papel.CLIENTE
+                br.com.nhac.backend_nhac.domain.usuario.Papel.CLIENTE,
+                null
         );
         when(usuarioService.buscarUsuario(USUARIO_LOGADO_ID)).thenReturn(mockResponse);
 

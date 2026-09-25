@@ -21,7 +21,10 @@ public record UsuarioResponseDTO(
         String imagemUrl,
 
         @Schema(description = "Papel (Role) do utilizador", example = "CLIENTE")
-        br.com.nhac.backend_nhac.domain.usuario.Papel papel
+        br.com.nhac.backend_nhac.domain.usuario.Papel papel,
+
+        @Schema(description = "Cargo do funcionário na loja", example = "Gerente")
+        String cargo
 ) {
 
     public UsuarioResponseDTO(Usuario usuario) {
@@ -31,7 +34,8 @@ public record UsuarioResponseDTO(
                 usuario.getEmail(),
                 usuario.getTelefone(),
                 usuario.getImagemUrl(),
-                usuario.getPapel()
+                usuario.getPapel(),
+                usuario.getCargo()
         );
     }
 }
