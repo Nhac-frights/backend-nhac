@@ -49,12 +49,12 @@ jobs:
 
     steps:
       - name: Checkout backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: backend-nhac
 
       - name: Checkout app E2E
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: NhacDelivery/Nhac
           # Branch do app cliente que contém tool/run_e2e.sh.
