@@ -2,6 +2,9 @@ package br.com.nhac.backend_nhac.domain.entregador;
 
 import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarLocalizacaoDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarStatusDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarVeiculoDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarDocumentosDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarDadosBancariosDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.CadastroEntregadorDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.EntregadorResponseDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
@@ -134,6 +137,61 @@ class EntregadorServiceTest {
         EntregadorResponseDTO resposta = entregadorService.atualizarStatus(dto, usuario);
 
         assertEquals(StatusOperacional.ONLINE, resposta.statusOperacional());
+    }
+
+    @Test
+    void devePersistirEdicaoDeVeiculoEExporCamposAtualizados() {
+        Entregador entregador = Entregador.builder().id("ent_1").usuario(usuario)
+                .statusOperacional(StatusOperacional.OFFLINE).build();
+        when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
+        when(entregadorRepository.save(any(Entregador.class))).thenAnswer(i -> i.getArgument(0));
+
+        var resposta = entregadorService.atualizarVeiculo(
+                new AtualizarVeiculoDTO(TipoVeiculo.MOTO, "abc1d23", "Honda CG", "Preta"), usuario);
+
+        assertEquals("ABC1D23", resposta.placaVeiculo());
+        assertEquals("Honda CG", resposta.modeloVeiculo());
+        assertEquals("Preta", resposta.corVeiculo());
+        verify(entregadorRepository).save(entregador);
+    }
+
+    @Test
+    void naoDeveTrocarVeiculoDuranteEntrega() {
+        Entregador entregador = Entregador.builder().id("ent_1").usuario(usuario)
+                .statusOperacional(StatusOperacional.EM_ENTREGA).build();
+        when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
+        assertThrows(RegraDeNegocioException.class, () -> entregadorService.atualizarVeiculo(
+                new AtualizarVeiculoDTO(TipoVeiculo.CARRO, "ABC1234", null, null), usuario));
+        verify(entregadorRepository, never()).save(any());
+    }
+
+    @Test
+    void deveImpedirCpfDeOutraContaSemModificarDocumentos() {
+        Entregador entregador = Entregador.builder().id("ent_1").usuario(usuario)
+                .cnh("12345678900").build();
+        when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
+        when(usuarioRepository.existsByCpfAndIdNot("98765432100", usuario.getId())).thenReturn(true);
+        assertThrows(RegraDeNegocioException.class, () -> entregadorService.atualizarDocumentos(
+                new AtualizarDocumentosDTO("12345678901", "98765432100"), usuario));
+        assertEquals("12345678900", entregador.getCnh());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void devePersistirDocumentosEChavePixNoPerfil() {
+        Entregador entregador = Entregador.builder().id("ent_1").usuario(usuario).build();
+        when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
+        when(entregadorRepository.save(any(Entregador.class))).thenAnswer(i -> i.getArgument(0));
+        var documentos = entregadorService.atualizarDocumentos(
+                new AtualizarDocumentosDTO("12345678901", "98765432100"), usuario);
+        assertEquals("98765432100", documentos.cpf());
+        assertEquals("12345678901", documentos.cnh());
+        verify(usuarioRepository).save(usuario);
+
+        var banco = entregadorService.atualizarDadosBancarios(
+                new AtualizarDadosBancariosDTO("EMAIL", " teste@example.com "), usuario);
+        assertEquals("EMAIL", banco.tipoChavePix());
+        assertEquals("teste@example.com", banco.chavePix());
     }
 
 

@@ -39,6 +39,12 @@ public class Entregador {
     @Column(name = "placa_veiculo", nullable = false, length = 20)
     private String placaVeiculo;
 
+    @Column(name = "tipo_chave_pix", length = 20)
+    private String tipoChavePix;
+
+    @Column(name = "chave_pix", length = 255)
+    private String chavePix;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo_veiculo", nullable = false, length = 20)
     @Builder.Default

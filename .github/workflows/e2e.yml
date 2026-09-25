@@ -57,8 +57,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: NhacDelivery/Nhac
-          ref: ${{ github.head_ref || github.ref_name }}
+          # Branch do app cliente que contém tool/run_e2e.sh.
+          # A branch do PR do backend não existe necessariamente nesse repositório.
+          ref: eu-e-tu
           path: Nhac
+
+      - name: Preparar ambiente do app E2E
+        run: cp Nhac/.env.example Nhac/.env
 
       - name: Setup Java 25
         uses: actions/setup-java@v4
@@ -109,7 +114,7 @@ jobs:
           disk-size: 4096M
           disable-animations: true
           working-directory: Nhac
-          script: ./tool/run_e2e.sh
+          script: ../backend-nhac/.github/scripts/run-client-e2e.sh
 
       - name: Upload E2E logs
         if: always()

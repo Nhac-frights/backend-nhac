@@ -2,6 +2,9 @@ package br.com.nhac.backend_nhac.domain.entregador;
 
 import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarLocalizacaoDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarStatusDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarVeiculoDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarDocumentosDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.AtualizarDadosBancariosDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.CadastroEntregadorDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.EntregaHistoricoDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.EntregadorResponseDTO;
@@ -51,6 +54,30 @@ public class EntregadorController {
             @AuthenticationPrincipal Usuario usuarioLogado
     ) {
         return ResponseEntity.ok(entregadorService.obterPerfil(usuarioLogado));
+    }
+
+    @PatchMapping("/veiculo")
+    @Operation(summary = "Atualiza o veículo do entregador logado")
+    public ResponseEntity<EntregadorResponseDTO> atualizarVeiculo(
+            @RequestBody @Valid AtualizarVeiculoDTO dto,
+            @AuthenticationPrincipal Usuario usuarioLogado) {
+        return ResponseEntity.ok(entregadorService.atualizarVeiculo(dto, usuarioLogado));
+    }
+
+    @PatchMapping("/documentos")
+    @Operation(summary = "Atualiza CPF e CNH do entregador logado")
+    public ResponseEntity<EntregadorResponseDTO> atualizarDocumentos(
+            @RequestBody @Valid AtualizarDocumentosDTO dto,
+            @AuthenticationPrincipal Usuario usuarioLogado) {
+        return ResponseEntity.ok(entregadorService.atualizarDocumentos(dto, usuarioLogado));
+    }
+
+    @PatchMapping("/dados-bancarios")
+    @Operation(summary = "Salva a chave PIX do entregador logado")
+    public ResponseEntity<EntregadorResponseDTO> atualizarDadosBancarios(
+            @RequestBody @Valid AtualizarDadosBancariosDTO dto,
+            @AuthenticationPrincipal Usuario usuarioLogado) {
+        return ResponseEntity.ok(entregadorService.atualizarDadosBancarios(dto, usuarioLogado));
     }
 
     @PatchMapping("/status")
