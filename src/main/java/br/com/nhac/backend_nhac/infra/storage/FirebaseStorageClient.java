@@ -40,6 +40,9 @@ public class FirebaseStorageClient {
     @Value("${nhac.storage.mock-mode:true}")
     private boolean mockMode;
 
+    @Value("${nhac.storage.fail-on-error:false}")
+    private boolean failOnError;
+
     private Storage storage;
 
     public FirebaseStorageClient(StorageProperties properties) {
@@ -74,6 +77,9 @@ public void init() {
 
         logger.info("Firebase Storage Client inicializado com sucesso para o bucket '{}'.", properties.getBucketName());
     } catch (Exception e) {
+        if (failOnError) {
+            throw new IllegalStateException("Falha ao inicializar o Firebase Storage Client", e);
+        }
         logger.error("Falha ao inicializar o Firebase Storage Client. Voltando para modo MOCK. Erro: {}", e.getMessage());
         this.mockMode = true;
     }
