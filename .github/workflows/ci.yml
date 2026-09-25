@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: ☕ Configurar JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v6
@@ -79,7 +79,7 @@ jobs:
       security-events: write
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 🔍 Trivy — scan do filesystem
         uses: aquasecurity/trivy-action@v0.36.0
@@ -114,7 +114,7 @@ jobs:
       image-name: ${{ steps.image.outputs.name }}
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Normalizar nome da imagem
         id: image
